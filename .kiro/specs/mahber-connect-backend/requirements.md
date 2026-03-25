@@ -353,7 +353,7 @@ MahberConnect is a cloud-based backend system that digitizes traditional Ethiopi
 
 #### Acceptance Criteria
 
-1. THE System SHALL use TypeORM or Prisma migrations to manage schema changes
+1. THE System SHALL use Prisma migrations to manage schema changes
 2. THE System SHALL version all migration files with timestamps
 3. WHEN a migration is applied, THE System SHALL record the migration in the migrations table
 4. THE System SHALL prevent running the same migration twice

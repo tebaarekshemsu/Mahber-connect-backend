@@ -14,11 +14,12 @@ This implementation plan breaks down the MahberConnect backend system into discr
     - Configure Jest for testing
     - _Requirements: 26.1_
 
-  - [ ] 1.2 Set up PostgreSQL database with TypeORM
-    - Install TypeORM and PostgreSQL driver
-    - Configure database connection with environment variables
-    - Set up connection pooling (min: 5, max: 20)
-    - Create initial database migration setup
+  - [ ] 1.2 Set up PostgreSQL database with Prisma
+    - Install Prisma CLI and Prisma Client (`pnpm add -D prisma && pnpm add @prisma/client`)
+    - Initialize Prisma with `pnpm exec prisma init`
+    - Configure DATABASE_URL in .env with connection pooling parameters
+    - Create initial Prisma schema in prisma/schema.prisma
+    - Generate Prisma Client with `pnpm exec prisma generate`
     - _Requirements: 23.1, 23.2, 24.1, 24.2, 24.3_
 
   - [ ] 1.3 Set up Redis for Bull Queue
@@ -43,11 +44,12 @@ This implementation plan breaks down the MahberConnect backend system into discr
 
 
 - [ ] 2. Auth Module Implementation
-  - [ ] 2.1 Create User entity and repository
-    - Define User entity with phone, password, name, email, bio fields
-    - Add unique constraint on phone field
-    - Create TypeORM repository with custom methods
-    - Add database migration for users table
+  - [ ] 2.1 Create User model in Prisma schema
+    - Define User model with phone, password, name, email, bio fields
+    - Add @unique constraint on phone field
+    - Create Prisma migration with `pnpm exec prisma migrate dev --name create_users`
+    - Generate Prisma Client
+    - Create PrismaService for dependency injection
     - _Requirements: 1.1, 1.3, 1.7_
 
   - [ ]* 2.2 Write property test for phone number validation
@@ -108,12 +110,12 @@ This implementation plan breaks down the MahberConnect backend system into discr
 
 
 - [ ] 3. Membership Module - Core Entities
-  - [ ] 3.1 Create Mahber entity and repository
-    - Define Mahber entity with name, type, configuration (JSONB), is_public, invitation_code
-    - Add unique constraint on name field
+  - [ ] 3.1 Create Mahber model in Prisma schema
+    - Define Mahber model with name, type, configuration (Json), is_public, invitation_code
+    - Add @unique constraint on name field
     - Create enum for MahberType (MAHBER, EQUB, IDDIR)
-    - Create TypeORM repository
-    - Add database migration for mahbers table
+    - Create Prisma migration with `pnpm exec prisma migrate dev --name create_mahbers`
+    - Generate Prisma Client
     - _Requirements: 2.1, 2.2, 2.3, 2.5, 2.6_
 
   - [ ]* 3.2 Write property test for configuration round-trip
@@ -124,17 +126,17 @@ This implementation plan breaks down the MahberConnect backend system into discr
     - **Property 25: Configuration Validation**
     - **Validates: Requirements 27.5, 27.6, 27.7**
 
-  - [ ] 3.4 Create Membership entity and repository
-    - Define Membership entity with mahber_id, member_id, status, role (JSONB), balance
+  - [ ] 3.4 Create Membership model in Prisma schema
+    - Define Membership model with mahber_id, member_id, status, role (Json), balance
     - Create enum for MembershipStatus (Pending, Approved, Payment_Required, Active, Suspended, Rejected, Invalidated)
-    - Add composite index on (mahber_id, member_id)
-    - Add foreign keys to users and mahbers tables
-    - Add database migration for memberships table
+    - Add @@index on [mahber_id, member_id]
+    - Add relations to User and Mahber models
+    - Create Prisma migration with `pnpm exec prisma migrate dev --name create_memberships`
     - _Requirements: 3.1, 3.7, 4.1, 4.2, 4.3, 4.4, 23.7_
 
-  - [ ] 3.5 Create JoinRequest entity and repository
-    - Define JoinRequest entity with mahber_id, user_id, status, invitation_code, rejection_reason
-    - Add database migration for join_requests table
+  - [ ] 3.5 Create JoinRequest model in Prisma schema
+    - Define JoinRequest model with mahber_id, user_id, status, invitation_code, rejection_reason
+    - Create Prisma migration with `pnpm exec prisma migrate dev --name create_join_requests`
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
 
   - [ ] 3.6 Implement Mahber CRUD endpoints
@@ -250,27 +252,27 @@ This implementation plan breaks down the MahberConnect backend system into discr
 
 
 - [ ] 7. Financial Module - Core Entities and Ledger
-  - [ ] 7.1 Create Payment entity and repository
-    - Define Payment entity with mahber_id, member_id, amount, payment_type, status, tx_ref, chapa_reference
+  - [ ] 7.1 Create Payment model in Prisma schema
+    - Define Payment model with mahber_id, member_id, amount, payment_type, status, tx_ref, chapa_reference
     - Create enums for PaymentType and PaymentStatus
-    - Add unique constraint on tx_ref
-    - Add composite index on (mahber_id, member_id, status)
-    - Add database migration for payments table
+    - Add @unique constraint on tx_ref
+    - Add @@index on [mahber_id, member_id, status]
+    - Create Prisma migration with `pnpm exec prisma migrate dev --name create_payments`
     - _Requirements: 6.1, 6.2, 23.7_
 
-  - [ ] 7.2 Create LedgerEntry entity and repository
-    - Define LedgerEntry entity with mahber_id, member_id, transaction_type, amount, running_balance
+  - [ ] 7.2 Create LedgerEntry model in Prisma schema
+    - Define LedgerEntry model with mahber_id, member_id, transaction_type, amount, running_balance
     - Create enum for TransactionType (Contribution, Fine, Equb_Payout, Iddir_Payout, Refund)
-    - Add composite index on (mahber_id, member_id, created_at)
-    - Add foreign keys to payments, fines, lottery tables
-    - Add database migration for ledger_entries table
+    - Add @@index on [mahber_id, member_id, created_at]
+    - Add optional relations to payments, fines, lottery tables
+    - Create Prisma migration with `pnpm exec prisma migrate dev --name create_ledger_entries`
     - _Requirements: 7.1, 7.2, 7.4, 7.7, 23.7_
 
-  - [ ] 7.3 Implement ledger service with balance calculation
+  - [ ] 7.3 Implement ledger service with balance calculation using Prisma
     - Create createLedgerEntry method with running balance calculation
-    - Implement getMemberBalance method
+    - Implement getMemberBalance method using Prisma aggregations
     - Implement getLedgerEntries method with pagination
-    - Ensure all operations use database transactions
+    - Ensure all operations use Prisma transactions ($transaction)
     - _Requirements: 7.3, 7.6_
 
   - [ ]* 7.4 Write property test for ledger balance consistency
@@ -366,10 +368,10 @@ This implementation plan breaks down the MahberConnect backend system into discr
 
 
 - [ ] 9. Financial Module - Fine Calculation
-  - [ ] 9.1 Create Fine entity and repository
-    - Define Fine entity with mahber_id, member_id, violation_type, amount, is_waived, waiver_reason
+  - [ ] 9.1 Create Fine model in Prisma schema
+    - Define Fine model with mahber_id, member_id, violation_type, amount, is_waived, waiver_reason
     - Create enum for ViolationType (MISSED_PAYMENT, MISSED_ATTENDANCE)
-    - Add database migration for fines table
+    - Create Prisma migration with `pnpm exec prisma migrate dev --name create_fines`
     - _Requirements: 8.1, 8.2, 8.4, 8.6_
 
   - [ ] 9.2 Implement fine calculation service
@@ -400,9 +402,9 @@ This implementation plan breaks down the MahberConnect backend system into discr
     - Test threshold checking
 
 - [ ] 10. Financial Module - Equb Lottery System
-  - [ ] 10.1 Create Lottery entity and repository
-    - Define Lottery entity with mahber_id, winner_id, eligible_members (JSONB), random_seed, payout_amount
-    - Add database migration for lottery_draws table
+  - [ ] 10.1 Create Lottery model in Prisma schema
+    - Define Lottery model with mahber_id, winner_id, eligible_members (Json), random_seed, payout_amount
+    - Create Prisma migration with `pnpm exec prisma migrate dev --name create_lottery_draws`
     - _Requirements: 9.5, 9.6_
 
   - [ ] 10.2 Implement lottery service with cryptographic randomness
@@ -438,22 +440,22 @@ This implementation plan breaks down the MahberConnect backend system into discr
 
 
 - [ ] 12. Events Module - Core Entities
-  - [ ] 12.1 Create Event entity and repository
-    - Define Event entity with mahber_id, title, description, event_type, start_time, end_time, location, is_mandatory
+  - [ ] 12.1 Create Event model in Prisma schema
+    - Define Event model with mahber_id, title, description, event_type, start_time, end_time, location, is_mandatory
     - Create enum for EventType (Meeting, Ceremony, Fundraiser, Social_Gathering)
-    - Add composite index on (mahber_id, start_time)
-    - Add database migration for events table
+    - Add @@index on [mahber_id, start_time]
+    - Create Prisma migration with `pnpm exec prisma migrate dev --name create_events`
     - _Requirements: 10.1, 10.2, 10.3, 23.7_
 
-  - [ ] 12.2 Create Attendance entity and repository
-    - Define Attendance entity with event_id, member_id, mahber_id, checked_in_at
-    - Add unique constraint on (event_id, member_id)
-    - Add database migration for attendance table
+  - [ ] 12.2 Create Attendance model in Prisma schema
+    - Define Attendance model with event_id, member_id, mahber_id, checked_in_at
+    - Add @@unique constraint on [event_id, member_id]
+    - Create Prisma migration with `pnpm exec prisma migrate dev --name create_attendance`
     - _Requirements: 11.4, 11.5_
 
-  - [ ] 12.3 Create EventPhoto entity and repository
-    - Define EventPhoto entity with event_id, mahber_id, uploader_id, file_path, thumbnail_path, caption
-    - Add database migration for event_photos table
+  - [ ] 12.3 Create EventPhoto model in Prisma schema
+    - Define EventPhoto model with event_id, mahber_id, uploader_id, file_path, thumbnail_path, caption
+    - Create Prisma migration with `pnpm exec prisma migrate dev --name create_event_photos`
     - _Requirements: 12.1, 12.2, 12.7_
 
   - [ ] 12.4 Implement event CRUD endpoints
@@ -568,15 +570,15 @@ This implementation plan breaks down the MahberConnect backend system into discr
 
 
 - [ ] 16. Communication Module - Announcements
-  - [ ] 16.1 Create Announcement entity and repository
-    - Define Announcement entity with mahber_id, title, content, priority, target_audience, scheduled_at
+  - [ ] 16.1 Create Announcement model in Prisma schema
+    - Define Announcement model with mahber_id, title, content, priority, target_audience, scheduled_at
     - Create enum for AnnouncementPriority (Normal, Important, Urgent)
-    - Add database migration for announcements table
+    - Create Prisma migration with `pnpm exec prisma migrate dev --name create_announcements`
     - _Requirements: 13.1, 13.2, 13.6, 13.7_
 
-  - [ ] 16.2 Create AnnouncementRead entity for tracking
-    - Define AnnouncementRead entity with announcement_id, member_id, read_at
-    - Add database migration for announcement_reads table
+  - [ ] 16.2 Create AnnouncementRead model for tracking
+    - Define AnnouncementRead model with announcement_id, member_id, read_at
+    - Create Prisma migration with `pnpm exec prisma migrate dev --name create_announcement_reads`
     - _Requirements: 13.5_
 
   - [ ] 16.3 Implement announcement endpoints
@@ -600,10 +602,10 @@ This implementation plan breaks down the MahberConnect backend system into discr
 
 
 - [ ] 17. Communication Module - Chat System
-  - [ ] 17.1 Create ChatMessage entity and repository
-    - Define ChatMessage entity with mahber_id, sender_id, content, edited_at, is_deleted
-    - Add composite index on (mahber_id, created_at)
-    - Add database migration for chat_messages table
+  - [ ] 17.1 Create ChatMessage model in Prisma schema
+    - Define ChatMessage model with mahber_id, sender_id, content, edited_at, is_deleted
+    - Add @@index on [mahber_id, created_at]
+    - Create Prisma migration with `pnpm exec prisma migrate dev --name create_chat_messages`
     - _Requirements: 14.1, 14.3, 14.4, 14.5_
 
   - [ ] 17.2 Implement chat messaging endpoints
@@ -627,12 +629,12 @@ This implementation plan breaks down the MahberConnect backend system into discr
 
 
 - [ ] 18. Communication Module - Voting System
-  - [ ] 18.1 Create Poll and Vote entities
-    - Define Poll entity with mahber_id, question, options (JSONB), poll_type, voting_deadline, eligibility_criteria
-    - Define Vote entity with poll_id, member_id, choices (JSONB)
+  - [ ] 18.1 Create Poll and Vote models in Prisma schema
+    - Define Poll model with mahber_id, question, options (Json), poll_type, voting_deadline, eligibility_criteria
+    - Define Vote model with poll_id, member_id, choices (Json)
     - Create enum for PollType (SINGLE_CHOICE, MULTIPLE_CHOICE)
-    - Add unique constraint on (poll_id, member_id)
-    - Add database migrations for polls and votes tables
+    - Add @@unique constraint on [poll_id, member_id] for Vote model
+    - Create Prisma migrations with `pnpm exec prisma migrate dev --name create_polls_and_votes`
     - _Requirements: 15.1, 15.2, 15.3, 15.8_
 
   - [ ] 18.2 Implement voting endpoints
@@ -670,9 +672,9 @@ This implementation plan breaks down the MahberConnect backend system into discr
     - Initialize Firebase app on module startup
     - _Requirements: 24.3_
 
-  - [ ] 19.2 Create DeviceToken entity and repository
-    - Define DeviceToken entity with user_id, token, platform, is_active
-    - Add database migration for device_tokens table
+  - [ ] 19.2 Create DeviceToken model in Prisma schema
+    - Define DeviceToken model with user_id, token, platform, is_active
+    - Create Prisma migration with `pnpm exec prisma migrate dev --name create_device_tokens`
     - _Requirements: 13.3_
 
   - [ ] 19.3 Implement device token management endpoints
@@ -784,10 +786,10 @@ This implementation plan breaks down the MahberConnect backend system into discr
 
 
 - [ ] 23. Audit Trail and Multi-Tenancy
-  - [ ] 23.1 Create AuditTrail entity and repository
-    - Define AuditTrail entity with mahber_id, entity_type, entity_id, action, actor_id, old_value, new_value, metadata
-    - Add composite index on (mahber_id, entity_type, created_at)
-    - Add database migration for audit_trail table
+  - [ ] 23.1 Create AuditTrail model in Prisma schema
+    - Define AuditTrail model with mahber_id, entity_type, entity_id, action, actor_id, old_value, new_value, metadata
+    - Add @@index on [mahber_id, entity_type, created_at]
+    - Create Prisma migration with `pnpm exec prisma migrate dev --name create_audit_trail`
     - _Requirements: 19.1, 19.2, 19.3, 19.4, 19.6, 23.7_
 
   - [ ] 23.2 Implement audit logging service
@@ -820,9 +822,9 @@ This implementation plan breaks down the MahberConnect backend system into discr
     - **Property 4: Multi-Tenancy Data Isolation**
     - **Validates: Requirements 5.7, 18.1, 18.2, 18.3, 18.4, 18.5, 18.6, 18.7**
 
-  - [ ] 23.5 Create base repository with tenant filtering
-    - Extend TypeORM repository with automatic mahber_id filtering
-    - Apply to all tenant-scoped queries
+  - [ ] 23.5 Create Prisma middleware for tenant filtering
+    - Implement Prisma middleware to automatically add mahber_id filter to queries
+    - Apply middleware to all tenant-scoped models
     - _Requirements: 18.1_
 
   - [ ]* 23.6 Write unit tests for audit trail
@@ -1112,10 +1114,10 @@ This implementation plan breaks down the MahberConnect backend system into discr
     - Configure health check endpoint
     - _Requirements: 25.1, 25.2, 25.7_
 
-  - [ ] 35.2 Set up database migrations for production
-    - Create all necessary migrations
-    - Test migration rollback capability
-    - Document migration process
+  - [ ] 35.2 Set up Prisma migrations for production
+    - Review all Prisma migrations for production readiness
+    - Test migration deployment process
+    - Document migration rollback strategy
     - _Requirements: 23.1, 23.2, 23.3, 23.4, 23.5, 25.5_
 
   - [ ] 35.3 Configure production environment

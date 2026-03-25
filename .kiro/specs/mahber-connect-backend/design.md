@@ -19,7 +19,7 @@ MahberConnect is a cloud-based backend system built with NestJS that digitizes t
 ### Technology Stack
 
 - **Framework**: NestJS (Node.js/TypeScript)
-- **Database**: PostgreSQL with TypeORM
+- **Database**: PostgreSQL with Prisma
 - **Authentication**: JWT with Passport.js
 - **Payment Gateway**: Chapa API (Telebirr/CBE Birr)
 - **Notifications**: Firebase Cloud Messaging (FCM)
@@ -92,7 +92,7 @@ The system follows a monolithic architecture with clear module boundaries for ma
 **Shared Database with Row-Level Isolation**: All tenants (Mahber organizations) share the same database with data isolated using `mahber_id` foreign keys.
 
 **Enforcement Mechanisms**:
-1. Query-Level Filtering: Custom repository base class automatically adds `mahber_id` filter
+1. Query-Level Filtering: Prisma middleware automatically adds `mahber_id` filter to all queries
 2. Guard-Level Validation: JWT token contains `mahber_id` claims, guards verify access
 3. Service-Level Checks: All service methods validate tenant ownership
 
@@ -105,7 +105,7 @@ sequenceDiagram
     participant AuthGuard
     participant RoleGuard
     participant Service
-    participant Repository
+    participant PrismaService
     participant Database
 
     Client->>Controller: HTTP Request + JWT
@@ -116,10 +116,10 @@ sequenceDiagram
     RoleGuard->>RoleGuard: Verify role has required permission
     RoleGuard->>Controller: Authorization OK
     Controller->>Service: Call business logic
-    Service->>Repository: Query with mahber_id filter
-    Repository->>Database: SELECT WHERE mahber_id = ?
-    Database->>Repository: Filtered results
-    Repository->>Service: Return data
+    Service->>PrismaService: Query with mahber_id filter
+    PrismaService->>Database: SELECT WHERE mahber_id = ?
+    Database->>PrismaService: Filtered results
+    PrismaService->>Service: Return data
     Service->>Controller: Process & return
     Controller->>Client: HTTP Response
 ```
@@ -280,309 +280,197 @@ sequenceDiagram
 
 ### Core Entities
 
-**User Entity**:
-```typescript
-@Entity('users')
-export class User {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
-  @Column({ unique: true })
-  phone: string; // +251XXXXXXXXX format
-
-  @Column()
-  password: string; // bcrypt hashed
-
-  @Column()
-  name: string; // Supports Amharic
-
-  @Column({ nullable: true })
-  email: string;
-
-  @Column({ nullable: true })
-  bio: string; // Supports Amharic
-
-  @CreateDateColumn()
-  created_at: Date;
-
-  @UpdateDateColumn()
-  updated_at: Date;
-
-  @OneToMany(() => Membership, membership => membership.user)
-  memberships: Membership[];
+**User Model** (Prisma Schema):
+```prisma
+model User {
+  id          String       @id @default(uuid())
+  phone       String       @unique // +251XXXXXXXXX format
+  password    String       // bcrypt hashed
+  name        String       // Supports Amharic
+  email       String?
+  bio         String?      // Supports Amharic
+  created_at  DateTime     @default(now())
+  updated_at  DateTime     @updatedAt
+  
+  memberships Membership[]
+  
+  @@map("users")
 }
 ```
 
 
-**Mahber Entity**:
-```typescript
-@Entity('mahbers')
-export class Mahber {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+**Mahber Model** (Prisma Schema):
+```prisma
+model Mahber {
+  id               String       @id @default(uuid())
+  name             String       @unique
+  type             MahberType   // MAHBER, EQUB, IDDIR
+  configuration    Json         // JSONB field for flexible config
+  is_public        Boolean      @default(true)
+  invitation_code  String?
+  created_at       DateTime     @default(now())
+  updated_at       DateTime     @updatedAt
+  
+  memberships      Membership[]
+  
+  @@map("mahbers")
+}
 
-  @Column({ unique: true })
-  name: string;
-
-  @Column({ type: 'enum', enum: MahberType })
-  type: MahberType; // MAHBER, EQUB, IDDIR
-
-  @Column({ type: 'jsonb' })
-  configuration: {
-    contribution_amount: number;
-    payment_frequency: 'Weekly' | 'Monthly' | 'Quarterly';
-    penalty_rate: number;
-    penalty_calculation_mode: 'percentage' | 'fixed';
-    absence_fine_amount: number;
-    operational_cost_rate: number;
-    lottery_date?: string; // For Equb
-    meeting_schedule?: string;
-  };
-
-  @Column({ default: true })
-  is_public: boolean;
-
-  @Column({ nullable: true })
-  invitation_code: string;
-
-  @CreateDateColumn()
-  created_at: Date;
-
-  @UpdateDateColumn()
-  updated_at: Date;
-
-  @OneToMany(() => Membership, membership => membership.mahber)
-  memberships: Membership[];
+enum MahberType {
+  MAHBER
+  EQUB
+  IDDIR
 }
 ```
 
-**Membership Entity**:
-```typescript
-@Entity('memberships')
-export class Membership {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+**Membership Model** (Prisma Schema):
+```prisma
+model Membership {
+  id                    String           @id @default(uuid())
+  mahber_id             String
+  member_id             String
+  status                MembershipStatus
+  role                  Json             // JSONB for flexible role structure
+  balance               Decimal          @default(0) @db.Decimal(10, 2)
+  has_won_current_cycle Boolean          @default(false)
+  approval_date         DateTime?
+  activation_date       DateTime?
+  created_at            DateTime         @default(now())
+  updated_at            DateTime         @updatedAt
+  
+  user                  User             @relation(fields: [member_id], references: [id])
+  mahber                Mahber           @relation(fields: [mahber_id], references: [id])
+  
+  @@index([mahber_id, member_id])
+  @@map("memberships")
+}
 
-  @Column()
-  mahber_id: string;
-
-  @Column()
-  member_id: string;
-
-  @Column({ type: 'enum', enum: MembershipStatus })
-  status: MembershipStatus;
-
-  @Column({ type: 'jsonb' })
-  role: {
-    name: string;
-    permissions: string[];
-  };
-
-  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
-  balance: number;
-
-  @Column({ default: false })
-  has_won_current_cycle: boolean; // For Equb
-
-  @Column({ nullable: true })
-  approval_date: Date;
-
-  @Column({ nullable: true })
-  activation_date: Date;
-
-  @CreateDateColumn()
-  created_at: Date;
-
-  @UpdateDateColumn()
-  updated_at: Date;
-
-  @ManyToOne(() => User, user => user.memberships)
-  @JoinColumn({ name: 'member_id' })
-  user: User;
-
-  @ManyToOne(() => Mahber, mahber => mahber.memberships)
-  @JoinColumn({ name: 'mahber_id' })
-  mahber: Mahber;
-
-  @Index(['mahber_id', 'member_id'])
-  mahber_member_idx: void;
+enum MembershipStatus {
+  Pending
+  Approved
+  Payment_Required
+  Active
+  Suspended
+  Rejected
+  Invalidated
 }
 ```
 
 
-**Payment Entity**:
-```typescript
-@Entity('payments')
-export class Payment {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+**Payment Model** (Prisma Schema):
+```prisma
+model Payment {
+  id              String        @id @default(uuid())
+  mahber_id       String
+  member_id       String
+  amount          Decimal       @db.Decimal(10, 2)
+  payment_type    PaymentType
+  status          PaymentStatus
+  tx_ref          String        @unique
+  chapa_reference String?
+  checkout_url    String?
+  completed_at    DateTime?
+  created_at      DateTime      @default(now())
+  
+  @@index([mahber_id, member_id, status])
+  @@map("payments")
+}
 
-  @Column()
-  mahber_id: string;
+enum PaymentType {
+  Contribution
+  JoinFee
+  Fine
+}
 
-  @Column()
-  member_id: string;
-
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
-  amount: number;
-
-  @Column({ type: 'enum', enum: PaymentType })
-  payment_type: PaymentType;
-
-  @Column({ type: 'enum', enum: PaymentStatus })
-  status: PaymentStatus;
-
-  @Column({ unique: true })
-  tx_ref: string; // Transaction reference for Chapa
-
-  @Column({ nullable: true })
-  chapa_reference: string;
-
-  @Column({ nullable: true })
-  checkout_url: string;
-
-  @Column({ nullable: true })
-  completed_at: Date;
-
-  @CreateDateColumn()
-  created_at: Date;
-
-  @Index(['mahber_id', 'member_id', 'status'])
-  payment_lookup_idx: void;
+enum PaymentStatus {
+  Pending
+  Completed
+  Failed
 }
 ```
 
-**LedgerEntry Entity**:
-```typescript
-@Entity('ledger_entries')
-export class LedgerEntry {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+**LedgerEntry Model** (Prisma Schema):
+```prisma
+model LedgerEntry {
+  id               String          @id @default(uuid())
+  mahber_id        String
+  member_id        String
+  transaction_type TransactionType
+  amount           Decimal         @db.Decimal(10, 2) // Positive for credit, negative for debit
+  running_balance  Decimal         @db.Decimal(10, 2)
+  payment_id       String?
+  fine_id          String?
+  lottery_id       String?
+  description      String
+  created_at       DateTime        @default(now())
+  
+  @@index([mahber_id, member_id, created_at])
+  @@map("ledger_entries")
+}
 
-  @Column()
-  mahber_id: string;
-
-  @Column()
-  member_id: string;
-
-  @Column({ type: 'enum', enum: TransactionType })
-  transaction_type: TransactionType;
-
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
-  amount: number; // Positive for credit, negative for debit
-
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
-  running_balance: number;
-
-  @Column({ nullable: true })
-  payment_id: string;
-
-  @Column({ nullable: true })
-  fine_id: string;
-
-  @Column({ nullable: true })
-  lottery_id: string;
-
-  @Column()
-  description: string;
-
-  @CreateDateColumn()
-  created_at: Date;
-
-  @Index(['mahber_id', 'member_id', 'created_at'])
-  ledger_query_idx: void;
+enum TransactionType {
+  Contribution
+  Fine
+  Equb_Payout
+  Iddir_Payout
+  Refund
 }
 ```
 
 
-**Event Entity**:
-```typescript
-@Entity('events')
-export class Event {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+**Event Model** (Prisma Schema):
+```prisma
+model Event {
+  id           String    @id @default(uuid())
+  mahber_id    String
+  title        String    // Supports Amharic
+  description  String    @db.Text // Supports Amharic
+  event_type   EventType
+  start_time   DateTime
+  end_time     DateTime
+  location     String
+  is_mandatory Boolean   @default(false)
+  is_cancelled Boolean   @default(false)
+  created_at   DateTime  @default(now())
+  
+  @@index([mahber_id, start_time])
+  @@map("events")
+}
 
-  @Column()
-  mahber_id: string;
-
-  @Column()
-  title: string; // Supports Amharic
-
-  @Column({ type: 'text' })
-  description: string; // Supports Amharic
-
-  @Column({ type: 'enum', enum: EventType })
-  event_type: EventType;
-
-  @Column()
-  start_time: Date;
-
-  @Column()
-  end_time: Date;
-
-  @Column()
-  location: string;
-
-  @Column({ default: false })
-  is_mandatory: boolean;
-
-  @Column({ default: false })
-  is_cancelled: boolean;
-
-  @CreateDateColumn()
-  created_at: Date;
-
-  @Index(['mahber_id', 'start_time'])
-  event_schedule_idx: void;
+enum EventType {
+  Meeting
+  Ceremony
+  Fundraiser
+  Social_Gathering
 }
 ```
 
-**AuditTrail Entity**:
-```typescript
-@Entity('audit_trail')
-export class AuditTrail {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
-  @Column()
-  mahber_id: string;
-
-  @Column()
-  entity_type: string; // 'payment', 'membership', 'fine', 'lottery', etc.
-
-  @Column()
-  entity_id: string;
-
-  @Column()
-  action: string; // 'payment_completed', 'status_transition', 'fine_applied', etc.
-
-  @Column({ nullable: true })
-  actor_id: string; // User who performed the action
-
-  @Column({ type: 'jsonb', nullable: true })
-  old_value: any;
-
-  @Column({ type: 'jsonb', nullable: true })
-  new_value: any;
-
-  @Column({ type: 'jsonb', nullable: true })
-  metadata: any;
-
-  @CreateDateColumn()
-  created_at: Date;
-
-  @Index(['mahber_id', 'entity_type', 'created_at'])
-  audit_query_idx: void;
+**AuditTrail Model** (Prisma Schema):
+```prisma
+model AuditTrail {
+  id          String   @id @default(uuid())
+  mahber_id   String
+  entity_type String   // 'payment', 'membership', 'fine', 'lottery', etc.
+  entity_id   String
+  action      String   // 'payment_completed', 'status_transition', 'fine_applied', etc.
+  actor_id    String?  // User who performed the action
+  old_value   Json?
+  new_value   Json?
+  metadata    Json?
+  created_at  DateTime @default(now())
+  
+  @@index([mahber_id, entity_type, created_at])
+  @@map("audit_trail")
 }
 ```
 
 ### Database Indexes
 
-**Performance Optimization**: Indexes are strategically placed on frequently queried columns:
+**Performance Optimization**: Indexes are strategically placed on frequently queried columns using Prisma's `@@index` directive:
 - `mahber_id` on all tenant-scoped tables
 - Composite indexes on `(mahber_id, member_id)` for membership lookups
 - Composite indexes on `(mahber_id, created_at)` for time-based queries
-- Unique indexes on `phone` (users), `name` (mahbers), `tx_ref` (payments)
+- Unique constraints on `phone` (users), `name` (mahbers), `tx_ref` (payments) using `@unique`
 
 
 ## Error Handling
@@ -873,18 +761,26 @@ describe('Feature: mahber-connect-backend, Property 1: Configuration round-trip'
 # Build stage
 FROM node:18-alpine AS builder
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 COPY . .
-RUN npm run build
+RUN pnpm run build
 
 # Production stage
 FROM node:18-alpine
 WORKDIR /app
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
 RUN addgroup -g 1001 -S nodejs && adduser -S nestjs -u 1001
 COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
-COPY --chown=nestjs:nodejs package*.json ./
+COPY --chown=nestjs:nodejs package.json pnpm-lock.yaml ./
 USER nestjs
 EXPOSE 3000
 CMD ["node", "dist/main"]
@@ -971,115 +867,27 @@ MAX_FILE_SIZE=10485760
 
 ### Database Migrations
 
-**Migration Strategy**: TypeORM migrations with timestamp-based versioning.
+**Migration Strategy**: Prisma Migrate with automatic migration generation from schema changes.
 
-**Example Migration**:
-```typescript
-import { MigrationInterface, QueryRunner, Table, TableIndex, TableForeignKey } from 'typeorm';
+**Workflow**:
+1. Update `prisma/schema.prisma` with model changes
+2. Run `pnpm exec prisma migrate dev --name migration_name` to generate migration
+3. Prisma automatically creates SQL migration files in `prisma/migrations/`
+4. Run `pnpm exec prisma migrate deploy` in production
 
-export class CreateMembershipsTable1234567890 implements MigrationInterface {
-  public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.createTable(
-      new Table({
-        name: 'memberships',
-        columns: [
-          {
-            name: 'id',
-            type: 'uuid',
-            isPrimary: true,
-            generationStrategy: 'uuid',
-            default: 'uuid_generate_v4()',
-          },
-          {
-            name: 'mahber_id',
-            type: 'uuid',
-          },
-          {
-            name: 'member_id',
-            type: 'uuid',
-          },
-          {
-            name: 'status',
-            type: 'enum',
-            enum: ['Pending', 'Approved', 'Payment_Required', 'Active', 'Suspended', 'Rejected', 'Invalidated'],
-          },
-          {
-            name: 'role',
-            type: 'jsonb',
-          },
-          {
-            name: 'balance',
-            type: 'decimal',
-            precision: 10,
-            scale: 2,
-            default: 0,
-          },
-          {
-            name: 'has_won_current_cycle',
-            type: 'boolean',
-            default: false,
-          },
-          {
-            name: 'approval_date',
-            type: 'timestamp',
-            isNullable: true,
-          },
-          {
-            name: 'activation_date',
-            type: 'timestamp',
-            isNullable: true,
-          },
-          {
-            name: 'created_at',
-            type: 'timestamp',
-            default: 'now()',
-          },
-          {
-            name: 'updated_at',
-            type: 'timestamp',
-            default: 'now()',
-          },
-        ],
-      }),
-      true
-    );
+**Example Migration Commands**:
+```bash
+# Development: Create and apply migration
+pnpm exec prisma migrate dev --name create_memberships_table
 
-    // Create indexes
-    await queryRunner.createIndex(
-      'memberships',
-      new TableIndex({
-        name: 'IDX_MEMBERSHIP_MAHBER_MEMBER',
-        columnNames: ['mahber_id', 'member_id'],
-      })
-    );
+# Production: Apply pending migrations
+pnpm exec prisma migrate deploy
 
-    // Create foreign keys
-    await queryRunner.createForeignKey(
-      'memberships',
-      new TableForeignKey({
-        columnNames: ['mahber_id'],
-        referencedColumnNames: ['id'],
-        referencedTableName: 'mahbers',
-        onDelete: 'CASCADE',
-      })
-    );
-
-    await queryRunner.createForeignKey(
-      'memberships',
-      new TableForeignKey({
-        columnNames: ['member_id'],
-        referencedColumnNames: ['id'],
-        referencedTableName: 'users',
-        onDelete: 'CASCADE',
-      })
-    );
-  }
-
-  public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.dropTable('memberships');
-  }
-}
+# Generate Prisma Client after schema changes
+pnpm exec prisma generate
 ```
+
+**Prisma Schema Example** (already shown in Core Entities section above)
 
 ### CI/CD Pipeline
 
@@ -1128,29 +936,33 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '18'
-          cache: 'npm'
+      
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
       
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
       
       - name: Run linter
-        run: npm run lint
+        run: pnpm run lint
       
       - name: Run unit tests
-        run: npm run test
+        run: pnpm run test
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
           REDIS_HOST: localhost
           REDIS_PORT: 6379
       
       - name: Run property-based tests
-        run: npm run test:property
+        run: pnpm run test:property
       
       - name: Run integration tests
-        run: npm run test:e2e
+        run: pnpm run test:e2e
       
       - name: Check code coverage
-        run: npm run test:cov
+        run: pnpm run test:cov
       
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
@@ -1613,10 +1425,18 @@ CREATE DATABASE mahberconnect
   TEMPLATE = template0;
 ```
 
-**Entity Configuration**:
-```typescript
-@Column({ type: 'varchar', length: 255, charset: 'utf8mb4', collation: 'utf8mb4_unicode_ci' })
-name: string; // Supports Amharic characters
+**Prisma Configuration for Amharic**:
+```prisma
+// In schema.prisma, ensure database uses UTF-8
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// String fields automatically support UTF-8/Amharic
+model User {
+  name String // Supports Amharic characters
+}
 ```
 
 

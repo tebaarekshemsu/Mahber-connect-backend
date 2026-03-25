@@ -7,15 +7,16 @@ This document outlines the step-by-step implementation plan for the backend of t
 - Initialize a new NestJS project using the CLI.
 - Set up the project structure with modules, controllers, and services.
 - Install necessary dependencies:
-  - `@nestjs/typeorm` or `@nestjs/prisma` for database integration.
+  - `@prisma/client` and `prisma` for database integration.
   - `@nestjs/jwt` and `passport` for authentication.
   - `class-validator` and `class-transformer` for validation.
 
 ### Step 2: Database Integration
 
 - Configure PostgreSQL as the database.
-- Define entities/models for `User`, `Role`, and other required tables.
-- Set up migrations for schema updates.
+- Set up Prisma ORM with schema definition.
+- Define models for `User`, `Role`, and other required tables.
+- Set up Prisma migrations for schema updates.
 
 ### Step 3: Authentication and Authorization
 
