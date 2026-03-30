@@ -1,16 +1,17 @@
-import { Body, Controller, Param, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { RoleService } from './role.service';
 import { AssignRoleDto } from './dto/assign-role.dto';
+import { CreateCustomRoleDto } from './dto/create-custom-role.dto';
 
 @UseGuards(JwtAuthGuard)
-@Controller('mahbers/:id/members')
+@Controller('mahbers/:id')
 export class RoleController {
   constructor(private readonly roleService: RoleService) {}
 
-  @Put(':memberId/role')
+  @Put('members/:memberId/role')
   assignRole(
     @Param('id') mahberId: string,
     @Param('memberId') memberId: string,
@@ -18,5 +19,14 @@ export class RoleController {
     @Body() dto: AssignRoleDto,
   ) {
     return this.roleService.assignRole(mahberId, memberId, user.sub, dto);
+  }
+
+  @Post('roles')
+  createCustomRole(
+    @Param('id') mahberId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: CreateCustomRoleDto,
+  ) {
+    return this.roleService.createCustomRole(mahberId, user.sub, dto);
   }
 }

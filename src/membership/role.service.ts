@@ -7,7 +7,11 @@ import {
 import { MembershipStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AssignRoleDto } from './dto/assign-role.dto';
+import { CreateCustomRoleDto } from './dto/create-custom-role.dto';
 import { DEFAULT_ROLES } from './rbac/roles';
+import { PERMISSIONS } from './rbac/permissions';
+
+const VALID_PERMISSIONS = Object.values(PERMISSIONS);
 
 @Injectable()
 export class RoleService {
@@ -98,6 +102,53 @@ export class RoleService {
       include: {
         user: { select: { id: true, name: true, phone: true } },
       },
+    });
+  }
+
+  async createCustomRole(mahberId: string, actorId: string, dto: CreateCustomRoleDto) {
+    // Validate actor is admin (has manage_roles permission)
+    const actorMembership = await this.prisma.membership.findFirst({
+      where: { mahber_id: mahberId, member_id: actorId },
+    });
+
+    if (!actorMembership) {
+      throw new ForbiddenException('You are not a member of this organization');
+    }
+
+    const actorRole = actorMembership.role as { name: string; permissions: string[] };
+    if (!actorRole?.permissions?.includes('manage_roles')) {
+      throw new ForbiddenException('Admin role required');
+    }
+
+    // Validate all permissions are valid
+    const invalidPermissions = dto.permissions.filter(
+      (p) => !VALID_PERMISSIONS.includes(p as any),
+    );
+    if (invalidPermissions.length > 0) {
+      throw new BadRequestException(
+        `Invalid permissions: ${invalidPermissions.join(', ')}. Valid permissions are: ${VALID_PERMISSIONS.join(', ')}`,
+      );
+    }
+
+    // Get current mahber
+    const mahber = await this.prisma.mahber.findUnique({ where: { id: mahberId } });
+    if (!mahber) {
+      throw new NotFoundException('Organization not found');
+    }
+
+    // Add custom role to configuration.custom_roles
+    const config = (mahber.configuration as Record<string, any>) ?? {};
+    const customRoles: { name: string; permissions: string[] }[] = config.custom_roles ?? [];
+
+    const newCustomRole = { name: dto.name, permissions: dto.permissions };
+    const updatedConfig = {
+      ...config,
+      custom_roles: [...customRoles, newCustomRole],
+    };
+
+    return this.prisma.mahber.update({
+      where: { id: mahberId },
+      data: { configuration: updatedConfig },
     });
   }
 }

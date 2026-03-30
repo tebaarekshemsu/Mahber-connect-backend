@@ -7,6 +7,9 @@ import { PrismaModule } from './prisma/prisma.module';
 import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
 import { MembershipModule } from './membership/membership.module';
+import { FinancialModule } from './financial/financial.module';
+import { EventsModule } from './events/events.module';
+import { CommunicationModule } from './communication/communication.module';
 import {
   appConfig,
   databaseConfig,
@@ -39,6 +42,9 @@ import { envValidationSchema } from './config/env.validation';
     HealthModule,
     AuthModule,
     MembershipModule,
+    FinancialModule,
+    EventsModule,
+    CommunicationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

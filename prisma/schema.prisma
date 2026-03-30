@@ -101,3 +101,189 @@ enum JoinRequestStatus {
   Rejected
   Invalidated
 }
+
+model Payment {
+  id              String        @id @default(uuid())
+  mahber_id       String
+  member_id       String
+  amount          Decimal       @db.Decimal(10, 2)
+  payment_type    PaymentType
+  status          PaymentStatus
+  tx_ref          String        @unique
+  chapa_reference String?
+  checkout_url    String?
+  completed_at    DateTime?
+  created_at      DateTime      @default(now())
+
+  @@index([mahber_id, member_id, status])
+  @@map("payments")
+}
+
+enum PaymentType {
+  Contribution
+  JoinFee
+  Fine
+}
+
+enum PaymentStatus {
+  Pending
+  Completed
+  Failed
+}
+
+model LedgerEntry {
+  id               String          @id @default(uuid())
+  mahber_id        String
+  member_id        String
+  transaction_type TransactionType
+  amount           Decimal         @db.Decimal(10, 2)
+  running_balance  Decimal         @db.Decimal(10, 2)
+  payment_id       String?
+  fine_id          String?
+  lottery_id       String?
+  description      String
+  created_at       DateTime        @default(now())
+
+  @@index([mahber_id, member_id, created_at])
+  @@map("ledger_entries")
+}
+
+enum TransactionType {
+  Contribution
+  Fine
+  Equb_Payout
+  Iddir_Payout
+  Refund
+}
+
+model Fine {
+  id             String        @id @default(uuid())
+  mahber_id      String
+  member_id      String
+  violation_type ViolationType
+  amount         Decimal       @db.Decimal(10, 2)
+  is_waived      Boolean       @default(false)
+  waiver_reason  String?
+  waived_by      String?
+  waived_at      DateTime?
+  created_at     DateTime      @default(now())
+
+  @@index([mahber_id, member_id])
+  @@map("fines")
+}
+
+enum ViolationType {
+  MISSED_PAYMENT
+  MISSED_ATTENDANCE
+}
+
+model Lottery {
+  id               String   @id @default(uuid())
+  mahber_id        String
+  winner_id        String
+  eligible_members Json
+  random_seed      String
+  payout_amount    Decimal  @db.Decimal(10, 2)
+  created_at       DateTime @default(now())
+
+  @@index([mahber_id])
+  @@map("lottery_draws")
+}
+
+model Event {
+  id           String    @id @default(uuid())
+  mahber_id    String
+  title        String // Supports Amharic
+  description  String    @db.Text // Supports Amharic
+  event_type   EventType
+  start_time   DateTime
+  end_time     DateTime
+  location     String
+  is_mandatory Boolean   @default(false)
+  is_cancelled Boolean   @default(false)
+  created_at   DateTime  @default(now())
+
+  @@index([mahber_id, start_time])
+  @@map("events")
+}
+
+enum EventType {
+  Meeting
+  Ceremony
+  Fundraiser
+  Social_Gathering
+}
+
+model Attendance {
+  id           String   @id @default(uuid())
+  event_id     String
+  member_id    String
+  mahber_id    String
+  checked_in_at DateTime @default(now())
+
+  @@unique([event_id, member_id])
+  @@map("attendance")
+}
+
+model EventPhoto {
+  id             String   @id @default(uuid())
+  event_id       String
+  mahber_id      String
+  uploader_id    String
+  file_path      String
+  thumbnail_path String?
+  caption        String? // Supports Amharic
+  created_at     DateTime @default(now())
+
+  @@index([event_id, mahber_id])
+  @@map("event_photos")
+}
+
+model Announcement {
+  id              String               @id @default(uuid())
+  mahber_id       String
+  title           String // Supports Amharic
+  content         String               @db.Text // Supports Amharic
+  priority        AnnouncementPriority
+  target_audience String? // null = all members, or role name
+  scheduled_at    DateTime? // null = publish immediately
+  is_published    Boolean              @default(false)
+  created_by      String // user_id
+  created_at      DateTime             @default(now())
+
+  reads AnnouncementRead[]
+
+  @@index([mahber_id, created_at])
+  @@map("announcements")
+}
+
+enum AnnouncementPriority {
+  Normal
+  Important
+  Urgent
+}
+
+model AnnouncementRead {
+  id              String       @id @default(uuid())
+  announcement_id String
+  member_id       String
+  read_at         DateTime     @default(now())
+
+  announcement Announcement @relation(fields: [announcement_id], references: [id])
+
+  @@unique([announcement_id, member_id])
+  @@map("announcement_reads")
+}
+
+model ChatMessage {
+  id         String    @id @default(uuid())
+  mahber_id  String
+  sender_id  String
+  content    String    @db.Text
+  edited_at  DateTime?
+  is_deleted Boolean   @default(false)
+  created_at DateTime  @default(now())
+
+  @@index([mahber_id, created_at])
+  @@map("chat_messages")
+}
