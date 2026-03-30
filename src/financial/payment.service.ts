@@ -12,6 +12,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ChapaService } from './chapa.service';
 import { LedgerService } from './ledger.service';
 import { InitiatePaymentDto } from './dto/initiate-payment.dto';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class PaymentService {
@@ -22,6 +23,7 @@ export class PaymentService {
     private readonly chapa: ChapaService,
     private readonly ledger: LedgerService,
     private readonly config: ConfigService,
+    private readonly audit: AuditService,
   ) {}
 
   // ─── Task 8.2 ────────────────────────────────────────────────────────────────
@@ -84,6 +86,16 @@ export class PaymentService {
     this.logger.log(
       `Payment initiated: id=${payment.id} tx_ref=${tx_ref} mahber=${mahberId} member=${memberId}`,
     );
+
+    await this.audit.logAuditEvent({
+      mahber_id: mahberId,
+      entity_type: 'payment',
+      entity_id: payment.id,
+      action: 'payment_initiated',
+      actor_id: memberId,
+      new_value: { tx_ref, amount: dto.amount, payment_type: dto.payment_type },
+      metadata: { checkout_url: chapaResult.checkout_url },
+    });
 
     return { checkout_url: chapaResult.checkout_url, payment_id: payment.id, tx_ref };
   }
@@ -183,12 +195,32 @@ export class PaymentService {
       });
 
       this.logger.log(`Webhook processed: tx_ref=${tx_ref} → Completed`);
+
+      await this.audit.logAuditEvent({
+        mahber_id: payment.mahber_id,
+        entity_type: 'payment',
+        entity_id: payment.id,
+        action: 'payment_completed',
+        old_value: { status: PaymentStatus.Pending },
+        new_value: { status: PaymentStatus.Completed, chapa_reference: payload.reference ?? null },
+        metadata: { tx_ref, webhook_payload: payload },
+      });
     } else {
       await this.prisma.payment.update({
         where: { id: payment.id },
         data: { status: PaymentStatus.Failed },
       });
       this.logger.log(`Webhook processed: tx_ref=${tx_ref} → Failed`);
+
+      await this.audit.logAuditEvent({
+        mahber_id: payment.mahber_id,
+        entity_type: 'payment',
+        entity_id: payment.id,
+        action: 'payment_failed',
+        old_value: { status: PaymentStatus.Pending },
+        new_value: { status: PaymentStatus.Failed },
+        metadata: { tx_ref, webhook_payload: payload },
+      });
     }
   }
 

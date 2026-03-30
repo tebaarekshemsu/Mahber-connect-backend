@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { MembershipStatus, PrismaClient } from '@prisma/client';
+import { AuditService } from '../audit/audit.service';
 
 export const VALID_TRANSITIONS: Record<MembershipStatus, MembershipStatus[]> = {
   [MembershipStatus.Pending]: [
@@ -21,6 +22,8 @@ export const VALID_TRANSITIONS: Record<MembershipStatus, MembershipStatus[]> = {
 @Injectable()
 export class StateMachineService {
   private readonly logger = new Logger(StateMachineService.name);
+
+  constructor(private readonly audit: AuditService) {}
 
   /**
    * Returns true if transitioning from `from` to `to` is a valid state transition.
@@ -70,20 +73,21 @@ export class StateMachineService {
       data: updateData,
     });
 
-    // AuditTrail model not yet in schema — log the transition for now
+    // AuditTrail model is now in schema — log the transition
     this.logger.log(
-      JSON.stringify({
-        entity_type: 'membership',
-        entity_id: membershipId,
-        action: 'status_transition',
-        actor_id: actorId,
-        mahber_id: membership.mahber_id,
-        old_value: { status: from },
-        new_value: { status: to },
-        metadata: { reason },
-        created_at: new Date().toISOString(),
-      }),
+      `Membership ${membershipId}: ${from} → ${to} by actor=${actorId}`,
     );
+
+    await this.audit.logAuditEvent({
+      mahber_id: membership.mahber_id,
+      entity_type: 'membership',
+      entity_id: membershipId,
+      action: 'status_transition',
+      actor_id: actorId,
+      old_value: { status: from },
+      new_value: { status: to },
+      metadata: { reason },
+    });
 
     return updated;
   }

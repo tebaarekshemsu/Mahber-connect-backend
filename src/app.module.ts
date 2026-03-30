@@ -10,6 +10,8 @@ import { MembershipModule } from './membership/membership.module';
 import { FinancialModule } from './financial/financial.module';
 import { EventsModule } from './events/events.module';
 import { CommunicationModule } from './communication/communication.module';
+import { AutomationModule } from './automation/automation.module';
+import { AuditModule } from './audit/audit.module';
 import {
   appConfig,
   databaseConfig,
@@ -45,6 +47,8 @@ import { envValidationSchema } from './config/env.validation';
     FinancialModule,
     EventsModule,
     CommunicationModule,
+    AutomationModule,
+    AuditModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -9,10 +9,13 @@ import { MemberService } from './member.service';
 import { RoleController } from './role.controller';
 import { RoleService } from './role.service';
 import { RoleGuard } from './guards/role.guard';
+import { TenantGuard } from './guards/tenant.guard';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
+  imports: [AuditModule],
   controllers: [MahberController, JoinRequestController, MemberController, RoleController],
-  providers: [MahberService, StateMachineService, JoinRequestService, MemberService, RoleService, RoleGuard],
-  exports: [MahberService, StateMachineService, JoinRequestService, MemberService, RoleService, RoleGuard],
+  providers: [MahberService, StateMachineService, JoinRequestService, MemberService, RoleService, RoleGuard, TenantGuard],
+  exports: [MahberService, StateMachineService, JoinRequestService, MemberService, RoleService, RoleGuard, TenantGuard],
 })
 export class MembershipModule {}

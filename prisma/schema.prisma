@@ -287,3 +287,67 @@ model ChatMessage {
   @@index([mahber_id, created_at])
   @@map("chat_messages")
 }
+
+enum PollType {
+  SINGLE_CHOICE
+  MULTIPLE_CHOICE
+}
+
+model Poll {
+  id                   String    @id @default(uuid())
+  mahber_id            String
+  question             String    @db.Text // Supports Amharic
+  options              Json // array of { id: string, text: string }
+  poll_type            PollType
+  voting_deadline      DateTime
+  eligibility_criteria String? // optional role name filter
+  is_closed            Boolean   @default(false)
+  created_by           String
+  created_at           DateTime  @default(now())
+
+  votes Vote[]
+
+  @@index([mahber_id])
+  @@map("polls")
+}
+
+model Vote {
+  id         String   @id @default(uuid())
+  poll_id    String
+  member_id  String
+  choices    Json // array of option IDs
+  created_at DateTime @default(now())
+
+  poll Poll @relation(fields: [poll_id], references: [id])
+
+  @@unique([poll_id, member_id])
+  @@map("votes")
+}
+
+model DeviceToken {
+  id         String   @id @default(uuid())
+  user_id    String
+  token      String   @unique
+  platform   String // ios, android, web
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now())
+
+  @@index([user_id])
+  @@map("device_tokens")
+}
+
+model AuditTrail {
+  id          String   @id @default(uuid())
+  mahber_id   String
+  entity_type String // e.g., 'payment', 'membership', 'fine', 'lottery'
+  entity_id   String
+  action      String // e.g., 'payment_completed', 'status_transition', 'fine_applied'
+  actor_id    String? // optional - system actions may not have an actor
+  old_value   Json?
+  new_value   Json?
+  metadata    Json?
+  created_at  DateTime @default(now())
+
+  @@index([mahber_id, entity_type, created_at])
+  @@map("audit_trail")
+}

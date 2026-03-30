@@ -3,11 +3,16 @@ import { AnnouncementService } from './announcement.service';
 import { AnnouncementController } from './announcement.controller';
 import { ChatService } from './chat.service';
 import { ChatController } from './chat.controller';
+import { PollService } from './poll.service';
+import { PollController } from './poll.controller';
+import { FirebaseService } from './firebase.service';
+import { NotificationService } from './notification.service';
+import { NotificationController } from './notification.controller';
 import { RoleGuard } from '../membership/guards/role.guard';
 
 @Module({
-  controllers: [AnnouncementController, ChatController],
-  providers: [AnnouncementService, ChatService, RoleGuard],
-  exports: [AnnouncementService, ChatService],
+  controllers: [AnnouncementController, ChatController, PollController, NotificationController],
+  providers: [AnnouncementService, ChatService, PollService, FirebaseService, NotificationService, RoleGuard],
+  exports: [AnnouncementService, ChatService, PollService, NotificationService],
 })
 export class CommunicationModule {}

@@ -10,12 +10,16 @@ import { AssignRoleDto } from './dto/assign-role.dto';
 import { CreateCustomRoleDto } from './dto/create-custom-role.dto';
 import { DEFAULT_ROLES } from './rbac/roles';
 import { PERMISSIONS } from './rbac/permissions';
+import { AuditService } from '../audit/audit.service';
 
 const VALID_PERMISSIONS = Object.values(PERMISSIONS);
 
 @Injectable()
 export class RoleService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   async assignRole(
     mahberId: string,
@@ -96,13 +100,25 @@ export class RoleService {
       permissions,
     };
 
-    return this.prisma.membership.update({
+    const updated = await this.prisma.membership.update({
       where: { id: memberId },
       data: { role: newRole },
       include: {
         user: { select: { id: true, name: true, phone: true } },
       },
     });
+
+    await this.audit.logAuditEvent({
+      mahber_id: mahberId,
+      entity_type: 'membership',
+      entity_id: memberId,
+      action: 'role_assigned',
+      actor_id: actorId,
+      old_value: { role: currentRole },
+      new_value: { role: newRole },
+    });
+
+    return updated;
   }
 
   async createCustomRole(mahberId: string, actorId: string, dto: CreateCustomRoleDto) {
