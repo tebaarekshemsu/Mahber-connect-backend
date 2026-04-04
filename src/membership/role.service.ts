@@ -11,14 +11,17 @@ import { CreateCustomRoleDto } from './dto/create-custom-role.dto';
 import { DEFAULT_ROLES } from './rbac/roles';
 import { PERMISSIONS } from './rbac/permissions';
 import { AuditService } from '../audit/audit.service';
+import { CacheService } from '../common/services/cache.service';
 
 const VALID_PERMISSIONS = Object.values(PERMISSIONS);
+const USER_ROLE_TTL = 1800; // 30 minutes
 
 @Injectable()
 export class RoleService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly cache: CacheService,
   ) {}
 
   async assignRole(
@@ -118,7 +121,25 @@ export class RoleService {
       new_value: { role: newRole },
     });
 
+    // Invalidate cached user role
+    await this.cache.del(`user:role:${mahberId}:${targetMembership.member_id}`);
+
     return updated;
+  }
+
+  async getUserRole(mahberId: string, userId: string): Promise<{ name: string; permissions: string[] } | null> {
+    const cacheKey = `user:role:${mahberId}:${userId}`;
+    return this.cache.getOrSet(
+      cacheKey,
+      async () => {
+        const membership = await this.prisma.membership.findFirst({
+          where: { mahber_id: mahberId, member_id: userId },
+          select: { role: true },
+        });
+        return (membership?.role as { name: string; permissions: string[] }) ?? null;
+      },
+      USER_ROLE_TTL,
+    );
   }
 
   async createCustomRole(mahberId: string, actorId: string, dto: CreateCustomRoleDto) {

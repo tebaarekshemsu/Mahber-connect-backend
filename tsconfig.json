@@ -22,6 +22,7 @@
     "noUnusedParameters": false,
     "paths": {
       "@/*": ["src/*"]
-    }
+    },
+    "types": ["jest", "node"]
   }
 }

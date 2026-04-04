@@ -8,6 +8,7 @@ import { MembershipStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateMahberDto } from './dto/create-mahber.dto';
 import { UpdateMahberDto } from './dto/update-mahber.dto';
+import { CacheService } from '../common/services/cache.service';
 
 const ADMIN_ROLE = {
   name: 'Admin',
@@ -21,9 +22,14 @@ const ADMIN_ROLE = {
   ],
 };
 
+const ORG_SETTINGS_TTL = 3600; // 1 hour
+
 @Injectable()
 export class MahberService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cache: CacheService,
+  ) {}
 
   async create(userId: string, dto: CreateMahberDto) {
     const existing = await this.prisma.mahber.findUnique({ where: { name: dto.name } });
@@ -75,12 +81,18 @@ export class MahberService {
       throw new ForbiddenException('You are not a member of this organization');
     }
 
-    const mahber = await this.prisma.mahber.findUnique({ where: { id: mahberId } });
-    if (!mahber) {
-      throw new NotFoundException('Organization not found');
-    }
-
-    return mahber;
+    const cacheKey = `mahber:settings:${mahberId}`;
+    return this.cache.getOrSet(
+      cacheKey,
+      async () => {
+        const mahber = await this.prisma.mahber.findUnique({ where: { id: mahberId } });
+        if (!mahber) {
+          throw new NotFoundException('Organization not found');
+        }
+        return mahber;
+      },
+      ORG_SETTINGS_TTL,
+    );
   }
 
   async update(mahberId: string, userId: string, dto: UpdateMahberDto) {
@@ -95,7 +107,7 @@ export class MahberService {
       }
     }
 
-    return this.prisma.mahber.update({
+    const updated = await this.prisma.mahber.update({
       where: { id: mahberId },
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
@@ -105,6 +117,11 @@ export class MahberService {
         ...(dto.invitation_code !== undefined && { invitation_code: dto.invitation_code }),
       },
     });
+
+    // Invalidate cached organization settings
+    await this.cache.del(`mahber:settings:${mahberId}`);
+
+    return updated;
   }
 
   async remove(mahberId: string, userId: string) {
@@ -119,6 +136,10 @@ export class MahberService {
     }
 
     await this.prisma.mahber.delete({ where: { id: mahberId } });
+
+    // Invalidate cached organization settings
+    await this.cache.del(`mahber:settings:${mahberId}`);
+
     return { message: 'Organization deleted successfully' };
   }
 

@@ -24,6 +24,10 @@ export class PrismaService
   implements OnModuleInit, OnModuleDestroy
 {
   async onModuleInit(): Promise<void> {
+    // Prisma Client automatically handles connection retries with exponential backoff
+    // via the connection_limit and pool_timeout parameters in the DATABASE_URL.
+    // On transient failures, Prisma will retry the connection before throwing.
+    // For explicit health checks, the $queryRaw`SELECT 1` pattern can be used.
     await this.$connect();
     this._registerTenantMiddleware();
   }

@@ -1,5 +1,7 @@
-import { Module } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { SanitizeMiddleware } from './common/middleware/sanitize.middleware';
+import { HttpsRedirectMiddleware } from './common/middleware/https-redirect.middleware';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -12,6 +14,7 @@ import { EventsModule } from './events/events.module';
 import { CommunicationModule } from './communication/communication.module';
 import { AutomationModule } from './automation/automation.module';
 import { AuditModule } from './audit/audit.module';
+import { CacheModule } from './common/cache.module';
 import {
   appConfig,
   databaseConfig,
@@ -40,6 +43,7 @@ import { envValidationSchema } from './config/env.validation';
         limit: 10,
       },
     ]),
+    CacheModule,
     PrismaModule,
     HealthModule,
     AuthModule,
@@ -53,4 +57,10 @@ import { envValidationSchema } from './config/env.validation';
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer
+      .apply(HttpsRedirectMiddleware, SanitizeMiddleware)
+      .forRoutes('*');
+  }
+}
