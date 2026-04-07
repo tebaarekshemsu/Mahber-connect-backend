@@ -2,14 +2,14 @@
 FROM node:18-alpine AS builder
 WORKDIR /app
 
-# Install OpenSSL and other dependencies required by Prisma
-RUN apk add --no-cache openssl libc6-compat
+# Install build dependencies for native modules (bcrypt, sharp, etc.)
+RUN apk add --no-cache openssl libc6-compat python3 make g++
 
 # Install pnpm via corepack
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Install dependencies
-COPY package.json ./
+# Copy package files and .npmrc
+COPY package.json .npmrc ./
 COPY prisma ./prisma
 RUN pnpm install --no-frozen-lockfile
 
