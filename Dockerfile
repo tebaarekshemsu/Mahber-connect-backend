@@ -6,11 +6,13 @@ WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # Install dependencies
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+COPY package.json ./
+COPY prisma ./prisma
+RUN pnpm install --no-frozen-lockfile
 
 # Copy source and build
 COPY . .
+RUN pnpm prisma generate --schema prisma/schema.prisma
 RUN pnpm run build
 
 # ---- Production Stage ----
@@ -26,7 +28,7 @@ RUN addgroup -g 1001 -S nodejs && adduser -S nestjs -u 1001
 # Copy built artifacts and dependencies from builder
 COPY --from=builder --chown=nestjs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
-COPY --chown=nestjs:nodejs package.json pnpm-lock.yaml ./
+COPY --chown=nestjs:nodejs package.json ./
 COPY --chown=nestjs:nodejs prisma ./prisma
 COPY --chown=nestjs:nodejs docker-entrypoint.sh ./docker-entrypoint.sh
 

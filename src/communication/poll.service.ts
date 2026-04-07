@@ -8,7 +8,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePollDto, PollOptionDto } from './dto/create-poll.dto';
 import { CastVoteDto } from './dto/cast-vote.dto';
-import { Poll } from '@prisma/client';
+import { Poll, Prisma } from '@prisma/client';
 
 @Injectable()
 export class PollService {
@@ -19,7 +19,7 @@ export class PollService {
       data: {
         mahber_id: mahberId,
         question: dto.question,
-        options: dto.options,
+        options: dto.options as unknown as Prisma.InputJsonValue,
         poll_type: dto.poll_type,
         voting_deadline: new Date(dto.voting_deadline),
         eligibility_criteria: dto.eligibility_criteria ?? null,
@@ -96,7 +96,7 @@ export class PollService {
     }
 
     // Validate choices against poll options
-    const options = poll.options as PollOptionDto[];
+    const options = poll.options as unknown as PollOptionDto[];
     const validOptionIds = new Set(options.map((o) => o.id));
 
     for (const choice of dto.choices) {
@@ -147,7 +147,7 @@ export class PollService {
       throw new ForbiddenException('Access denied');
     }
 
-    const options = closedPoll.options as PollOptionDto[];
+    const options = closedPoll.options as unknown as PollOptionDto[];
 
     // Aggregate vote counts per option — no individual vote exposure
     const counts: Record<string, number> = {};

@@ -49,7 +49,7 @@ export class RoleGuard implements CanActivate {
       throw new ForbiddenException('Insufficient permissions');
     }
 
-    const role = membership.role as Role;
+    const role = membership.role as unknown as Role;
     const permissions: Permission[] = role?.permissions ?? [];
 
     if (!permissions.includes(requiredPermission)) {

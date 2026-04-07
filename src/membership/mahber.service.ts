@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { MembershipStatus } from '@prisma/client';
+import { MembershipStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateMahberDto } from './dto/create-mahber.dto';
 import { UpdateMahberDto } from './dto/update-mahber.dto';
@@ -42,7 +42,7 @@ export class MahberService {
         data: {
           name: dto.name,
           type: dto.type,
-          configuration: dto.configuration,
+          configuration: dto.configuration as Prisma.InputJsonValue,
           is_public: dto.is_public ?? true,
           invitation_code: dto.invitation_code,
         },
@@ -112,7 +112,9 @@ export class MahberService {
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
         ...(dto.type !== undefined && { type: dto.type }),
-        ...(dto.configuration !== undefined && { configuration: dto.configuration }),
+        ...(dto.configuration !== undefined && {
+          configuration: dto.configuration as Prisma.InputJsonValue,
+        }),
         ...(dto.is_public !== undefined && { is_public: dto.is_public }),
         ...(dto.invitation_code !== undefined && { invitation_code: dto.invitation_code }),
       },
