@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RoleGuard } from '../membership/guards/role.guard';
 import { RequirePermission } from '../membership/decorators/require-permission.decorator';
@@ -19,13 +20,19 @@ import { EventService } from './event.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 
+@ApiTags('Events')
+@ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RoleGuard)
 @Controller('mahbers/:id/events')
 export class EventController {
-  constructor(private readonly eventService: EventService) {}
+  constructor(private readonly eventService: EventService) { }
 
   @Post()
   @RequirePermission(PERMISSIONS.CREATE_EVENTS)
+  @ApiOperation({ summary: 'Create a new event' })
+  @ApiParam({ name: 'id', description: 'Mahber ID' })
+  @ApiResponse({ status: 201, description: 'Event created successfully' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
   create(
     @Param('id') mahberId: string,
     @CurrentUser() user: JwtPayload,
@@ -35,6 +42,11 @@ export class EventController {
   }
 
   @Get()
+  @ApiOperation({ summary: 'Get all events for a mahber' })
+  @ApiParam({ name: 'id', description: 'Mahber ID' })
+  @ApiQuery({ name: 'page', required: false, description: 'Page number', example: 1 })
+  @ApiQuery({ name: 'limit', required: false, description: 'Items per page', example: 20 })
+  @ApiResponse({ status: 200, description: 'Events retrieved successfully' })
   findAll(
     @Param('id') mahberId: string,
     @Query('page') page = '1',
@@ -48,6 +60,11 @@ export class EventController {
   }
 
   @Get(':eventId')
+  @ApiOperation({ summary: 'Get event details' })
+  @ApiParam({ name: 'id', description: 'Mahber ID' })
+  @ApiParam({ name: 'eventId', description: 'Event ID' })
+  @ApiResponse({ status: 200, description: 'Event details retrieved successfully' })
+  @ApiResponse({ status: 404, description: 'Event not found' })
   findOne(
     @Param('id') mahberId: string,
     @Param('eventId') eventId: string,
@@ -57,6 +74,12 @@ export class EventController {
 
   @Put(':eventId')
   @RequirePermission(PERMISSIONS.CREATE_EVENTS)
+  @ApiOperation({ summary: 'Update an event' })
+  @ApiParam({ name: 'id', description: 'Mahber ID' })
+  @ApiParam({ name: 'eventId', description: 'Event ID' })
+  @ApiResponse({ status: 200, description: 'Event updated successfully' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
+  @ApiResponse({ status: 404, description: 'Event not found' })
   update(
     @Param('id') mahberId: string,
     @Param('eventId') eventId: string,
@@ -68,6 +91,12 @@ export class EventController {
 
   @Delete(':eventId')
   @RequirePermission(PERMISSIONS.CREATE_EVENTS)
+  @ApiOperation({ summary: 'Cancel an event' })
+  @ApiParam({ name: 'id', description: 'Mahber ID' })
+  @ApiParam({ name: 'eventId', description: 'Event ID' })
+  @ApiResponse({ status: 200, description: 'Event cancelled successfully' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
+  @ApiResponse({ status: 404, description: 'Event not found' })
   cancel(
     @Param('id') mahberId: string,
     @Param('eventId') eventId: string,

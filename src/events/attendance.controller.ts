@@ -6,6 +6,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RoleGuard } from '../membership/guards/role.guard';
 import { RequirePermission } from '../membership/decorators/require-permission.decorator';
@@ -23,6 +24,8 @@ class RecordAttendanceDto {
   qr_token!: string;
 }
 
+@ApiTags('Events - Attendance')
+@ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RoleGuard)
 @Controller('mahbers/:id/events/:eventId')
 export class AttendanceController {
@@ -30,16 +33,15 @@ export class AttendanceController {
     private readonly attendanceService: AttendanceService,
     private readonly qrService: QrService,
     private readonly eventService: EventService,
-  ) {}
+  ) { }
 
-  /**
-   * GET /mahbers/:id/events/:eventId/qr
-   * Generate a QR code for the event. Requires create_events permission (secretary).
-   *
-   * Validates: Requirement 11.1
-   */
   @Get('qr')
   @RequirePermission(PERMISSIONS.CREATE_EVENTS)
+  @ApiOperation({ summary: 'Generate QR code for event attendance' })
+  @ApiParam({ name: 'id', description: 'Mahber ID' })
+  @ApiParam({ name: 'eventId', description: 'Event ID' })
+  @ApiResponse({ status: 200, description: 'QR code generated successfully' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
   async getQrCode(
     @Param('id') mahberId: string,
     @Param('eventId') eventId: string,
@@ -49,13 +51,12 @@ export class AttendanceController {
     return { qr_code: qrDataUrl };
   }
 
-  /**
-   * POST /mahbers/:id/events/:eventId/attendance
-   * Record attendance for the authenticated member using a QR token.
-   *
-   * Validates: Requirements 11.3, 11.4, 11.5
-   */
   @Post('attendance')
+  @ApiOperation({ summary: 'Record attendance using QR code' })
+  @ApiParam({ name: 'id', description: 'Mahber ID' })
+  @ApiParam({ name: 'eventId', description: 'Event ID' })
+  @ApiResponse({ status: 201, description: 'Attendance recorded successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid QR token or already recorded' })
   async recordAttendance(
     @Param('id') mahberId: string,
     @Param('eventId') eventId: string,

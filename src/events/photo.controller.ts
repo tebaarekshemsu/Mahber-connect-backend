@@ -11,6 +11,7 @@ import {
   UseInterceptors,
   Body,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam, ApiQuery, ApiConsumes } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import * as path from 'path';
@@ -21,9 +22,6 @@ import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { PhotoService, UPLOAD_CONFIG } from './photo.service';
 import { UploadPhotoDto } from './dto/upload-photo.dto';
 
-/**
- * Task 14.1: multer file filter — only JPEG and PNG.
- */
 function imageFileFilter(
   _req: any,
   file: any,
@@ -36,21 +34,20 @@ function imageFileFilter(
   }
 }
 
+@ApiTags('Events - Photos')
+@ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('mahbers/:id/events/:eventId/photos')
 export class PhotoController {
-  constructor(private readonly photoService: PhotoService) {}
+  constructor(private readonly photoService: PhotoService) { }
 
-  /**
-   * POST /mahbers/:id/events/:eventId/photos
-   * Upload a photo to an event gallery.
-   * Validates: Requirements 12.1, 12.2, 12.7
-   *
-   * Storage is configured dynamically per request using the mahberId/eventId
-   * route params. The multer interceptor uses a storage engine that reads
-   * params from the request object at runtime.
-   */
   @Post()
+  @ApiOperation({ summary: 'Upload a photo to event gallery' })
+  @ApiConsumes('multipart/form-data')
+  @ApiParam({ name: 'id', description: 'Mahber ID' })
+  @ApiParam({ name: 'eventId', description: 'Event ID' })
+  @ApiResponse({ status: 201, description: 'Photo uploaded successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid file or file too large' })
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
@@ -91,12 +88,13 @@ export class PhotoController {
     );
   }
 
-  /**
-   * GET /mahbers/:id/events/:eventId/photos
-   * Paginated photo listing with multi-tenancy isolation.
-   * Validates: Requirement 12.4
-   */
   @Get()
+  @ApiOperation({ summary: 'Get all photos for an event' })
+  @ApiParam({ name: 'id', description: 'Mahber ID' })
+  @ApiParam({ name: 'eventId', description: 'Event ID' })
+  @ApiQuery({ name: 'page', required: false, description: 'Page number', example: 1 })
+  @ApiQuery({ name: 'limit', required: false, description: 'Items per page', example: 20 })
+  @ApiResponse({ status: 200, description: 'Photos retrieved successfully' })
   findAll(
     @Param('id') mahberId: string,
     @Param('eventId') eventId: string,
@@ -111,12 +109,14 @@ export class PhotoController {
     );
   }
 
-  /**
-   * DELETE /mahbers/:id/events/:eventId/photos/:photoId
-   * Delete a photo — uploader or admin only.
-   * Validates: Requirement 12.5
-   */
   @Delete(':photoId')
+  @ApiOperation({ summary: 'Delete a photo (uploader or admin only)' })
+  @ApiParam({ name: 'id', description: 'Mahber ID' })
+  @ApiParam({ name: 'eventId', description: 'Event ID' })
+  @ApiParam({ name: 'photoId', description: 'Photo ID' })
+  @ApiResponse({ status: 200, description: 'Photo deleted successfully' })
+  @ApiResponse({ status: 403, description: 'Not authorized to delete this photo' })
+  @ApiResponse({ status: 404, description: 'Photo not found' })
   deletePhoto(
     @Param('id') mahberId: string,
     @Param('eventId') eventId: string,
