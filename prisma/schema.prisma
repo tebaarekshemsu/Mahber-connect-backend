@@ -31,8 +31,23 @@ model User {
   event_invitations EventInvitation[]
   password_reset_tokens PasswordResetToken[]
   payouts Payout[]
+  payouts_approved Payout[] @relation("PayoutApprover")
   events_created Event[] @relation("EventCreatedBy")
   events_hosted  Event[] @relation("EventHost")
+  payments Payment[]
+  pending_payments PendingPayment[]
+  ledger_entries LedgerEntry[]
+  fines Fine[]
+  fines_waived Fine[] @relation("FineWaiver")
+  lotteries_won Lottery[]
+  expenses_created Expense[]
+  attendance_records Attendance[]
+  event_photos EventPhoto[]
+  announcements_created Announcement[]
+  chat_messages ChatMessage[]
+  device_tokens DeviceToken[]
+  announcement_reads AnnouncementRead[]
+  votes Vote[]
 
   @@map("users")
 }
@@ -63,6 +78,21 @@ model Mahber {
 
   memberships   Membership[]
   join_requests JoinRequest[]
+  payments Payment[]
+  pending_payments PendingPayment[]
+  ledger_entries LedgerEntry[]
+  fines Fine[]
+  lotteries Lottery[]
+  expenses Expense[]
+  payouts Payout[]
+  events Event[]
+  event_invitations EventInvitation[]
+  attendance_records Attendance[]
+  event_photos EventPhoto[]
+  announcements Announcement[]
+  chat_messages ChatMessage[]
+  polls Poll[]
+  audit_trails AuditTrail[]
 
   @@map("mahbers")
 }
@@ -149,6 +179,11 @@ model Payment {
   created_at      DateTime      @default(now())
   updated_at      DateTime      @default(now()) @updatedAt
 
+  member User  @relation(fields: [member_id], references: [id])
+  mahber Mahber @relation(fields: [mahber_id], references: [id])
+  fines Fine[]
+  ledger_entries LedgerEntry[]
+
   @@index([mahber_id, member_id, status])
   @@map("payments")
 }
@@ -160,6 +195,9 @@ model PendingPayment {
   amount     Decimal  @db.Decimal(10, 2)
   status     String   @default("pending") // "pending", "completed", "failed"
   created_at DateTime @default(now())
+
+  member User  @relation(fields: [member_id], references: [id])
+  mahber Mahber @relation(fields: [mahber_id], references: [id])
 
   @@index([mahber_id, member_id, status])
   @@map("pending_payments")
@@ -193,6 +231,14 @@ model LedgerEntry {
   description      String
   created_at       DateTime        @default(now())
 
+  member  User    @relation(fields: [member_id], references: [id])
+  mahber  Mahber  @relation(fields: [mahber_id], references: [id])
+  payment Payment? @relation(fields: [payment_id], references: [id])
+  fine    Fine?    @relation(fields: [fine_id], references: [id])
+  lottery Lottery? @relation(fields: [lottery_id], references: [id])
+  expense Expense? @relation(fields: [expense_id], references: [id])
+  payout  Payout?  @relation(fields: [payout_id], references: [id])
+
   @@index([mahber_id, member_id, created_at])
   @@map("ledger_entries")
 }
@@ -221,6 +267,12 @@ model Fine {
   waived_at      DateTime?
   created_at     DateTime      @default(now())
 
+  member         User   @relation(fields: [member_id], references: [id])
+  mahber         Mahber @relation(fields: [mahber_id], references: [id])
+  payment        Payment? @relation(fields: [payment_id], references: [id])
+  waived_by_user User?    @relation("FineWaiver", fields: [waived_by], references: [id])
+  ledger_entries LedgerEntry[]
+
   @@index([mahber_id, member_id])
   @@index([mahber_id, member_id, paid_at])
   @@map("fines")
@@ -239,6 +291,10 @@ model Lottery {
   random_seed      String
   payout_amount    Decimal  @db.Decimal(10, 2)
   created_at       DateTime @default(now())
+
+  mahber         Mahber @relation(fields: [mahber_id], references: [id])
+  winner         User   @relation(fields: [winner_id], references: [id])
+  ledger_entries LedgerEntry[]
 
   @@index([mahber_id])
   @@map("lottery_draws")
@@ -260,6 +316,10 @@ model Expense {
   created_by String
   created_at DateTime        @default(now())
   updated_at DateTime        @updatedAt
+
+  mahber         Mahber @relation(fields: [mahber_id], references: [id])
+  creator        User   @relation(fields: [created_by], references: [id])
+  ledger_entries LedgerEntry[]
 
   @@index([mahber_id])
   @@map("expenses")
@@ -284,7 +344,10 @@ model Payout {
   created_at    DateTime       @default(now())
   updated_at    DateTime       @updatedAt
 
-  member User @relation(fields: [member_id], references: [id])
+  member  User    @relation(fields: [member_id], references: [id])
+  mahber  Mahber  @relation(fields: [mahber_id], references: [id])
+  approver User   @relation("PayoutApprover", fields: [approved_by], references: [id])
+  ledger_entries LedgerEntry[]
 
   @@index([mahber_id])
   @@index([mahber_id, member_id])
@@ -307,7 +370,10 @@ model Event {
   host_id      String?
   created_at   DateTime  @default(now())
 
-  invitations EventInvitation[]
+  mahber       Mahber @relation(fields: [mahber_id], references: [id])
+  invitations  EventInvitation[]
+  attendance_records Attendance[]
+  event_photos EventPhoto[]
 
   created_by_user User?  @relation("EventCreatedBy", fields: [created_by], references: [id])
   host_user       User?  @relation("EventHost",       fields: [host_id],   references: [id])
@@ -342,6 +408,7 @@ model EventInvitation {
 
   member User  @relation(fields: [member_id], references: [id])
   event  Event @relation(fields: [event_id], references: [id])
+  mahber Mahber @relation(fields: [mahber_id], references: [id])
 
   @@unique([event_id, member_id])
   @@index([mahber_id, member_id, status])
@@ -354,6 +421,10 @@ model Attendance {
   member_id     String
   mahber_id     String
   checked_in_at DateTime @default(now())
+
+  event  Event  @relation(fields: [event_id], references: [id])
+  member User   @relation(fields: [member_id], references: [id])
+  mahber Mahber @relation(fields: [mahber_id], references: [id])
 
   @@unique([event_id, member_id])
   @@map("attendance")
@@ -369,6 +440,10 @@ model EventPhoto {
   thumbnail_path       String?
   caption              String? // Supports Amharic
   created_at           DateTime @default(now())
+
+  event    Event  @relation(fields: [event_id], references: [id])
+  mahber   Mahber @relation(fields: [mahber_id], references: [id])
+  uploader User   @relation(fields: [uploader_id], references: [id])
 
   @@index([event_id, mahber_id])
   @@map("event_photos")
@@ -386,7 +461,9 @@ model Announcement {
   created_by      String // user_id
   created_at      DateTime             @default(now())
 
-  reads AnnouncementRead[]
+  mahber  Mahber @relation(fields: [mahber_id], references: [id])
+  creator User   @relation(fields: [created_by], references: [id])
+  reads   AnnouncementRead[]
 
   @@index([mahber_id, created_at])
   @@map("announcements")
@@ -405,6 +482,7 @@ model AnnouncementRead {
   read_at         DateTime @default(now())
 
   announcement Announcement @relation(fields: [announcement_id], references: [id])
+  member       User        @relation(fields: [member_id], references: [id])
 
   @@unique([announcement_id, member_id])
   @@map("announcement_reads")
@@ -418,6 +496,9 @@ model ChatMessage {
   edited_at  DateTime?
   is_deleted Boolean   @default(false)
   created_at DateTime  @default(now())
+
+  mahber Mahber @relation(fields: [mahber_id], references: [id])
+  sender User   @relation(fields: [sender_id], references: [id])
 
   @@index([mahber_id, created_at])
   @@map("chat_messages")
@@ -440,8 +521,9 @@ model Poll {
   created_by           String
   created_at           DateTime @default(now())
 
-  votes   Vote[]
-  creator User   @relation(fields: [created_by], references: [id])
+  mahber Mahber @relation(fields: [mahber_id], references: [id])
+  votes  Vote[]
+  creator User  @relation(fields: [created_by], references: [id])
 
   @@index([mahber_id])
   @@map("polls")
@@ -454,7 +536,8 @@ model Vote {
   choices    Json // array of option IDs
   created_at DateTime @default(now())
 
-  poll Poll @relation(fields: [poll_id], references: [id])
+  poll   Poll @relation(fields: [poll_id], references: [id])
+  member User @relation(fields: [member_id], references: [id])
 
   @@unique([poll_id, member_id])
   @@map("votes")
@@ -468,6 +551,8 @@ model DeviceToken {
   is_active  Boolean  @default(true)
   created_at DateTime @default(now())
 
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
   @@index([user_id])
   @@map("device_tokens")
 }
@@ -480,6 +565,7 @@ model AuditTrail {
   action      String // e.g., 'payment_completed', 'status_transition', 'fine_applied'
   actor_id    String? // optional - system actions may not have an actor
   actor       User?    @relation(fields: [actor_id], references: [id])
+  mahber      Mahber   @relation(fields: [mahber_id], references: [id])
   old_value   Json?
   new_value   Json?
   metadata    Json?
