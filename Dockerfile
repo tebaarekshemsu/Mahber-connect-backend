@@ -11,6 +11,8 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 # Copy package files and .npmrc
 COPY package.json .npmrc ./
 COPY prisma ./prisma
+
+# Install dependencies with build scripts enabled
 RUN pnpm install --no-frozen-lockfile
 
 # Copy source and build
