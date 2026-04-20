@@ -1,0 +1,990 @@
+{
+  "info": {
+    "name": "MahberConnect API",
+    "description": "Complete API collection for MahberConnect Backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "mahberId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('token', response.access_token);",
+                  "    pm.collectionVariables.set('userId', response.user.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone_number\": \"+251912345678\",\n  \"password\": \"Test123!@#\",\n  \"full_name\": \"Test User\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('token', response.access_token);",
+                  "    pm.collectionVariables.set('userId', response.user.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone_number\": \"+251912345678\",\n  \"password\": \"Test123!@#\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "profile"]
+            }
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Updated Name\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "profile"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Mahbers (Organizations)",
+      "item": [
+        {
+          "name": "Create Mahber",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('mahberId', response.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Mahber\",\n  \"type\": \"Equb\",\n  \"configuration\": {\n    \"contribution_amount\": 1000,\n    \"contribution_frequency\": \"monthly\"\n  },\n  \"is_public\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mahbers",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers"]
+            }
+          }
+        },
+        {
+          "name": "Get All Mahbers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mahbers",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers"]
+            }
+          }
+        },
+        {
+          "name": "Get Mahber by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Mahber",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Mahber Name\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Mahber",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Membership",
+      "item": [
+        {
+          "name": "Get Members",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}/members",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}", "members"]
+            }
+          }
+        },
+        {
+          "name": "Assign Role",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"member_id\": \"{{userId}}\",\n  \"role_name\": \"Treasurer\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}/members/assign-role",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}", "members", "assign-role"]
+            }
+          }
+        },
+        {
+          "name": "Remove Member",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}/members/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}", "members", "{{userId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Join Requests",
+      "item": [
+        {
+          "name": "Create Join Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mahber_id\": \"{{mahberId}}\",\n  \"message\": \"I would like to join this mahber\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/join-requests",
+              "host": ["{{baseUrl}}"],
+              "path": ["join-requests"]
+            }
+          }
+        },
+        {
+          "name": "Get Join Requests",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}/join-requests",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}", "join-requests"]
+            }
+          }
+        },
+        {
+          "name": "Process Join Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"approve\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}/join-requests/:requestId/process",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}", "join-requests", ":requestId", "process"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Events",
+      "item": [
+        {
+          "name": "Create Event",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Monthly Meeting\",\n  \"description\": \"Regular monthly meeting\",\n  \"type\": \"Meeting\",\n  \"start_time\": \"2026-05-01T10:00:00Z\",\n  \"end_time\": \"2026-05-01T12:00:00Z\",\n  \"location\": \"Community Center\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}/events",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}", "events"]
+            }
+          }
+        },
+        {
+          "name": "Get All Events",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}/events?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}", "events"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Event by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}/events/:eventId",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}", "events", ":eventId"]
+            }
+          }
+        },
+        {
+          "name": "Update Event",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Event Title\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}/events/:eventId",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}", "events", ":eventId"]
+            }
+          }
+        },
+        {
+          "name": "Cancel Event",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}/events/:eventId",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}", "events", ":eventId"]
+            }
+          }
+        },
+        {
+          "name": "Generate QR Code",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}/events/:eventId/qr",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}", "events", ":eventId", "qr"]
+            }
+          }
+        },
+        {
+          "name": "Record Attendance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"qr_token\": \"token-from-qr-code\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}/events/:eventId/attendance",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}", "events", ":eventId", "attendance"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Event Photos",
+      "item": [
+        {
+          "name": "Upload Photo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "caption",
+                  "value": "Event photo",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}/events/:eventId/photos",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}", "events", ":eventId", "photos"]
+            }
+          }
+        },
+        {
+          "name": "Get Photos",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}/events/:eventId/photos?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}", "events", ":eventId", "photos"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Photo",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}/events/:eventId/photos/:photoId",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}", "events", ":eventId", "photos", ":photoId"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Financial",
+      "item": [
+        {
+          "name": "Get Ledger",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}/ledger?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}", "ledger"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Balance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}/ledger/balance",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}", "ledger", "balance"]
+            }
+          }
+        },
+        {
+          "name": "Initiate Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 1000,\n  \"type\": \"Contribution\",\n  \"description\": \"Monthly contribution\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}/payments/initiate",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}", "payments", "initiate"]
+            }
+          }
+        },
+        {
+          "name": "Get Payments",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}/payments",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}", "payments"]
+            }
+          }
+        },
+        {
+          "name": "Get Fines",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}/fines",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}", "fines"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Communication",
+      "item": [
+        {
+          "name": "Create Announcement",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Important Announcement\",\n  \"content\": \"This is an important announcement for all members\",\n  \"priority\": \"High\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}/announcements",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}", "announcements"]
+            }
+          }
+        },
+        {
+          "name": "Get Announcements",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}/announcements",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}", "announcements"]
+            }
+          }
+        },
+        {
+          "name": "Send Chat Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Hello everyone!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}/chat",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}", "chat"]
+            }
+          }
+        },
+        {
+          "name": "Get Chat Messages",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}/chat?page=1&limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}", "chat"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Poll",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"What time should we meet?\",\n  \"options\": [\"10:00 AM\", \"2:00 PM\", \"6:00 PM\"],\n  \"type\": \"SingleChoice\",\n  \"expires_at\": \"2026-05-01T00:00:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}/polls",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}", "polls"]
+            }
+          }
+        },
+        {
+          "name": "Get Polls",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}/polls",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}", "polls"]
+            }
+          }
+        },
+        {
+          "name": "Vote on Poll",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"option_index\": 0\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}/polls/:pollId/vote",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}", "polls", ":pollId", "vote"]
+            }
+          }
+        },
+        {
+          "name": "Register Device Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"firebase-device-token\",\n  \"platform\": \"android\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/notifications/register-device",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "register-device"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Audit",
+      "item": [
+        {
+          "name": "Get Audit Trail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/mahbers/{{mahberId}}/audit?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["mahbers", "{{mahberId}}", "audit"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
