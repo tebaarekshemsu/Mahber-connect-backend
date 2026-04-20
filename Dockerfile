@@ -16,7 +16,7 @@ COPY prisma ./prisma
 RUN pnpm install --no-frozen-lockfile
 
 # Rebuild native modules to ensure they're compiled for Alpine
-RUN cd node_modules/bcrypt && node-gyp rebuild
+RUN npm rebuild bcrypt --build-from-source
 
 # Copy source and build
 COPY . .
