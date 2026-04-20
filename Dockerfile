@@ -15,6 +15,9 @@ COPY prisma ./prisma
 # Install dependencies with build scripts enabled
 RUN pnpm install --no-frozen-lockfile
 
+# Rebuild native modules to ensure they're compiled for Alpine
+RUN pnpm rebuild bcrypt --build-from-source
+
 # Copy source and build
 COPY . .
 RUN pnpm prisma generate --schema prisma/schema.prisma
