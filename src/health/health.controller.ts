@@ -17,7 +17,7 @@ export class HealthController {
     private readonly configService: ConfigService,
   ) {}
 
-  @Get()
+  @Get('detailed')
   @HealthCheck()
   async check(): Promise<HealthCheckResult> {
     return this.health.check([
