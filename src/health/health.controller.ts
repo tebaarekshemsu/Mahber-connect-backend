@@ -5,10 +5,12 @@ import {
   HealthCheckResult,
   HealthIndicatorResult,
 } from '@nestjs/terminus';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 
+@ApiTags('Health')
 @Controller('health')
 export class HealthController {
   constructor(
