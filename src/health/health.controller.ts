@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Logger } from '@nestjs/common';
 import {
   HealthCheck,
   HealthCheckService,
@@ -13,6 +13,8 @@ import Redis from 'ioredis';
 @ApiTags('Health')
 @Controller('health')
 export class HealthController {
+  private readonly logger = new Logger(HealthController.name);
+
   constructor(
     private readonly health: HealthCheckService,
     private readonly prisma: PrismaService,
@@ -79,23 +81,42 @@ export class HealthController {
   }
 
   private async checkRedis(): Promise<HealthIndicatorResult> {
+    const host = this.configService.get<string>('redis.host', 'localhost');
+    const port = this.configService.get<number>('redis.port', 6379);
+    const password = this.configService.get<string>('redis.password') || undefined;
+    
+    // Read TLS directly from environment variable as fallback
+    const tlsEnabled = process.env.REDIS_TLS === 'true';
+    const tls = tlsEnabled ? { rejectUnauthorized: false } : undefined;
+    
+    // Debug: Log what we're getting
+    this.logger.log(`Redis config - REDIS_TLS env var: ${process.env.REDIS_TLS}`);
+    this.logger.log(`Redis config - tlsEnabled: ${tlsEnabled}`);
+    this.logger.log(`Attempting Redis connection to ${host}:${port} with TLS: ${!!tls}`);
+    
     const client = new Redis({
-      host: this.configService.get<string>('redis.host', 'localhost'),
-      port: this.configService.get<number>('redis.port', 6379),
-      password: this.configService.get<string>('redis.password') || undefined,
-      tls: this.configService.get<any>('redis.tls'),
-      lazyConnect: true,
-      connectTimeout: 5000,
+      host,
+      port,
+      password,
+      tls,
+      connectTimeout: 10000,
+      retryStrategy: () => null, // Don't retry on health check
     });
 
     try {
-      await client.connect();
-      await client.ping();
+      const result = await client.ping();
+      this.logger.log(`Redis connection successful, PING response: ${result}`);
       return { redis: { status: 'up' } };
-    } catch {
-      return { redis: { status: 'down' } };
+    } catch (error: any) {
+      this.logger.error(`Redis connection failed: ${error.message}`);
+      this.logger.error(`Error stack: ${error.stack}`);
+      return { redis: { status: 'down', error: error.message } };
     } finally {
-      await client.quit().catch(() => undefined);
+      try {
+        await client.quit();
+      } catch (quitError: any) {
+        this.logger.warn(`Error closing Redis connection: ${quitError.message}`);
+      }
     }
   }
 }
