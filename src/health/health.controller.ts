@@ -21,6 +21,47 @@ export class HealthController {
 
   @Get('detailed')
   @HealthCheck()
+  @ApiOperation({ 
+    summary: 'Detailed health check - Tests database and Redis connectivity',
+    description: 'Returns the health status of PostgreSQL database and Redis (used for job queues and caching). Use this endpoint to verify all backend services are operational.'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'All services are healthy',
+    schema: {
+      example: {
+        status: 'ok',
+        info: {
+          database: { status: 'up' },
+          redis: { status: 'up' }
+        },
+        error: {},
+        details: {
+          database: { status: 'up' },
+          redis: { status: 'up' }
+        }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 503, 
+    description: 'One or more services are down',
+    schema: {
+      example: {
+        status: 'error',
+        info: {
+          database: { status: 'up' }
+        },
+        error: {
+          redis: { status: 'down' }
+        },
+        details: {
+          database: { status: 'up' },
+          redis: { status: 'down' }
+        }
+      }
+    }
+  })
   async check(): Promise<HealthCheckResult> {
     return this.health.check([
       () => this.checkDatabase(),
