@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
@@ -6,6 +7,8 @@ import { JoinRequestService } from './join-request.service';
 import { CreateJoinRequestDto } from './dto/create-join-request.dto';
 import { ProcessJoinRequestDto } from './dto/process-join-request.dto';
 
+@ApiTags('Membership')
+@ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('mahbers/:id/join-requests')
 export class JoinRequestController {

@@ -1,4 +1,5 @@
 import { Body, Controller, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
@@ -6,6 +7,8 @@ import { RoleService } from './role.service';
 import { AssignRoleDto } from './dto/assign-role.dto';
 import { CreateCustomRoleDto } from './dto/create-custom-role.dto';
 
+@ApiTags('Membership')
+@ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('mahbers/:id')
 export class RoleController {

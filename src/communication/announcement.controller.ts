@@ -7,6 +7,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RoleGuard } from '../membership/guards/role.guard';
 import { RequirePermission } from '../membership/decorators/require-permission.decorator';
@@ -16,10 +17,12 @@ import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { AnnouncementService } from './announcement.service';
 import { CreateAnnouncementDto } from './dto/create-announcement.dto';
 
+@ApiTags('Communication')
+@ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RoleGuard)
 @Controller('mahbers/:id/announcements')
 export class AnnouncementController {
-  constructor(private readonly announcementService: AnnouncementService) {}
+  constructor(private readonly announcementService: AnnouncementService) { }
 
   @Post()
   @RequirePermission(PERMISSIONS.SEND_ANNOUNCEMENTS)

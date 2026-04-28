@@ -7,6 +7,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RoleGuard } from '../membership/guards/role.guard';
 import { RequirePermission } from '../membership/decorators/require-permission.decorator';
@@ -17,10 +18,12 @@ import { PollService } from './poll.service';
 import { CreatePollDto } from './dto/create-poll.dto';
 import { CastVoteDto } from './dto/cast-vote.dto';
 
+@ApiTags('Communication')
+@ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RoleGuard)
 @Controller('mahbers/:id/polls')
 export class PollController {
-  constructor(private readonly pollService: PollService) {}
+  constructor(private readonly pollService: PollService) { }
 
   /** POST /mahbers/:id/polls — admin only (send_announcements permission) */
   @Post()

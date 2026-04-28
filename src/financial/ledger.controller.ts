@@ -5,6 +5,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RoleGuard } from '../membership/guards/role.guard';
 import { RequirePermission } from '../membership/decorators/require-permission.decorator';
@@ -15,6 +16,8 @@ import { LedgerService } from './ledger.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TransactionType } from '@prisma/client';
 
+@ApiTags('Financial')
+@ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('mahbers/:id')
 export class LedgerController {
