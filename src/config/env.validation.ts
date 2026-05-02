@@ -34,16 +34,13 @@ export const envValidationSchema = Joi.object({
   CHAPA_BASE_URL: Joi.string().uri().default('https://api.chapa.co/v1'),
 
   // Firebase Cloud Messaging
-  FIREBASE_PROJECT_ID: Joi.string().required().messages({
-    'any.required': 'FIREBASE_PROJECT_ID is required for push notifications.',
-    'string.empty': 'FIREBASE_PROJECT_ID must not be empty.',
+  FIREBASE_PROJECT_ID: Joi.string().optional().allow('').messages({
+    'string.empty': 'FIREBASE_PROJECT_ID must not be empty if provided.',
   }),
-  FIREBASE_PRIVATE_KEY: Joi.string().required().messages({
-    'any.required': 'FIREBASE_PRIVATE_KEY is required for push notifications.',
-    'string.empty': 'FIREBASE_PRIVATE_KEY must not be empty.',
+  FIREBASE_PRIVATE_KEY: Joi.string().optional().allow('').messages({
+    'string.empty': 'FIREBASE_PRIVATE_KEY must not be empty if provided.',
   }),
-  FIREBASE_CLIENT_EMAIL: Joi.string().email().required().messages({
-    'any.required': 'FIREBASE_CLIENT_EMAIL is required for push notifications.',
-    'string.email': 'FIREBASE_CLIENT_EMAIL must be a valid email address.',
+  FIREBASE_CLIENT_EMAIL: Joi.string().email().optional().allow('').messages({
+    'string.email': 'FIREBASE_CLIENT_EMAIL must be a valid email address if provided.',
   }),
 });

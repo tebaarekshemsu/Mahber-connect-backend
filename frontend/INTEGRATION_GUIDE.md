@@ -111,7 +111,7 @@ Create `frontend/.env.local`:
 ```env
 # Point to backend (change port if backend runs elsewhere)
 NEXT_PUBLIC_API_URL=http://localhost:3000
-NEXT_PUBLIC_USE_MOCK=false
+NEXT_PUBLIC_USE_MOCK=true
 ```
 
 ### 4.2 Install & Run Frontend
@@ -220,7 +220,7 @@ Below is the **complete** mapping of every frontend API call to its backend cont
 
 ## 7. Testing Checklist
 
-Once both servers are running with `NEXT_PUBLIC_USE_MOCK=false`:
+Once both servers are running with `NEXT_PUBLIC_USE_MOCK=true`:
 
 ### Phase 1: Authentication
 - [ ] Register a new user → Verify JWT is returned and stored

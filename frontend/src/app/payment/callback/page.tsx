@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { financialService } from '@/lib/api/service-factory';
 
-export default function PaymentCallbackPage() {
+function PaymentCallbackContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   
@@ -84,5 +84,13 @@ export default function PaymentCallbackPage() {
         </CardFooter>
       </Card>
     </div>
+  );
+}
+
+export default function PaymentCallbackPage() {
+  return (
+    <Suspense fallback={<div className="min-h-[100dvh] flex items-center justify-center p-4 bg-background">Loading...</div>}>
+      <PaymentCallbackContent />
+    </Suspense>
   );
 }
