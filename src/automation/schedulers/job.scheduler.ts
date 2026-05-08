@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
+import { ConfigService } from '@nestjs/config';
+import axios from 'axios';
 import { QUEUE_NAMES, JoinRequestExpiryJobData, PaymentReminderJobData } from '../interfaces/job-types';
 
 @Injectable()
@@ -17,6 +19,8 @@ export class JobScheduler {
 
     @InjectQueue(QUEUE_NAMES.PAYMENT_REMINDER)
     private readonly paymentReminderQueue: Queue<PaymentReminderJobData>,
+
+    private readonly configService: ConfigService,
   ) {}
 
   /** Run fine calculation check every day at midnight (Req 16.1) */
@@ -38,5 +42,22 @@ export class JobScheduler {
   async schedulePaymentReminders(): Promise<void> {
     this.logger.log('Scheduling payment reminder job');
     await this.paymentReminderQueue.add({});
+  }
+
+  /** Ping the health endpoint every 30 minutes to prevent Render from sleeping */
+  @Cron('*/30 * * * *')
+  async keepAlive(): Promise<void> {
+    const appUrl = this.configService.get<string>('APP_URL');
+    if (!appUrl) {
+      this.logger.warn('Keep-alive skipped: APP_URL env variable is not set');
+      return;
+    }
+    const url = `${appUrl}/health`;
+    try {
+      const { status } = await axios.get(url, { timeout: 10000 });
+      this.logger.log(`Keep-alive ping successful (status ${status})`);
+    } catch (error: any) {
+      this.logger.warn(`Keep-alive ping failed: ${error.message}`);
+    }
   }
 }
