@@ -6,6 +6,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -13,6 +14,7 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -45,6 +47,14 @@ export class MahberController {
     return this.mahberService.findAll(user.sub);
   }
 
+  @Get('public')
+  @ApiOperation({ summary: 'Search public Mahbers (for join page discovery)' })
+  @ApiQuery({ name: 'q', required: false, description: 'Search by name' })
+  @ApiResponse({ status: 200, description: 'Returns list of public Mahbers' })
+  searchPublic(@Query('q') query?: string) {
+    return this.mahberService.searchPublic(query);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a specific Mahber by ID' })
   @ApiResponse({ status: 200, description: 'Returns the Mahber' })
@@ -52,6 +62,13 @@ export class MahberController {
   @ApiResponse({ status: 404, description: 'Mahber not found' })
   findOne(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
     return this.mahberService.findOne(id, user.sub);
+  }
+
+  @Get(':id/statistics')
+  @ApiOperation({ summary: 'Get summary statistics for a Mahber' })
+  @ApiResponse({ status: 200, description: 'Returns member count, balance, active events' })
+  getStatistics(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.mahberService.getStatistics(id, user.sub);
   }
 
   @Put(':id')

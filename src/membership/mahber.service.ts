@@ -72,6 +72,39 @@ export class MahberService {
     return memberships.map((m) => m.mahber);
   }
 
+  async searchPublic(query?: string) {
+    return this.prisma.mahber.findMany({
+      where: {
+        is_public: true,
+        ...(query ? { name: { contains: query, mode: 'insensitive' } } : {}),
+      },
+      select: { id: true, name: true, type: true, is_public: true, created_at: true },
+      orderBy: { name: 'asc' },
+      take: 50,
+    });
+  }
+
+  async getStatistics(mahberId: string, userId: string) {
+    // Verify membership
+    const membership = await this.prisma.membership.findFirst({
+      where: { mahber_id: mahberId, member_id: userId },
+    });
+    if (!membership) {
+      throw new ForbiddenException('You are not a member of this organization');
+    }
+
+    const [totalMembers, activeMembers, upcomingEvents, totalPayments] = await Promise.all([
+      this.prisma.membership.count({ where: { mahber_id: mahberId } }),
+      this.prisma.membership.count({ where: { mahber_id: mahberId, status: 'Active' } }),
+      this.prisma.event.count({
+        where: { mahber_id: mahberId, is_cancelled: false, start_time: { gte: new Date() } },
+      }),
+      this.prisma.payment.count({ where: { mahber_id: mahberId, status: 'Completed' } }),
+    ]);
+
+    return { totalMembers, activeMembers, upcomingEvents, totalPayments };
+  }
+
   async findOne(mahberId: string, userId: string) {
     const membership = await this.prisma.membership.findFirst({
       where: { mahber_id: mahberId, member_id: userId },

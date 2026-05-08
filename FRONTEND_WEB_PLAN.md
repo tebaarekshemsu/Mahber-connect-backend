@@ -18,6 +18,11 @@
 8. [Real-time Features](#8-real-time-features)
 9. [Internationalization (i18n)](#9-internationalization-i18n)
 10. [Development Roadmap](#10-development-roadmap)
+11. [Key Implementation Details](#11-key-implementation-details)
+12. [Environment Variables](#12-environment-variables)
+13. [Deployment](#13-deployment)
+14. [PWA & Mobile Support](#14-pwa--mobile-support)
+15. [Summary](#15-summary)
 
 ---
 
@@ -46,7 +51,7 @@
 
 ### State & Data Management
 - **Global State**: Zustand
-- **Server State**: TanStack Query (React Query)
+- **Server State**: TanStack Query v5 (React Query)
 - **API Client**: Axios
 - **WebSocket**: Socket.io-client
 - **Form State**: React Hook Form
@@ -54,9 +59,9 @@
 ### Utilities
 - **Date**: date-fns
 - **i18n**: next-intl
-- **QR Code**: qrcode.react (generation), html5-qrcode (scanning)
+- **QR Code**: html5-qrcode (scanning only — QR image is server-rendered)
 - **PDF**: jsPDF or @react-pdf/renderer
-- **Notifications**: react-hot-toast or sonner
+- **Notifications**: sonner
 - **Currency**: dinero.js
 - **Validation**: Zod
 
@@ -74,6 +79,12 @@
 ```
 mahberconnect-web/
 ├── app/                              # Next.js 14 App Router
+│   ├── (public)/                    # Public layout group (no auth, no sidebar)
+│   │   ├── page.tsx                 # Landing page
+│   │   ├── layout.tsx               # Public layout (navbar + footer)
+│   │   └── about/
+│   │       └── page.tsx
+│   │
 │   ├── (auth)/                      # Auth layout group (no sidebar)
 │   │   ├── login/
 │   │   │   └── page.tsx
@@ -82,21 +93,27 @@ mahberconnect-web/
 │   │   └── layout.tsx
 │   │
 │   ├── (dashboard)/                 # Main app layout (with sidebar)
-│   │   ├── layout.tsx              # Dashboard layout
-│   │   ├── page.tsx                # Home/Dashboard
+│   │   ├── layout.tsx               # Dashboard layout
+│   │   ├── onboarding/
+│   │   │   └── page.tsx             # First-time user onboarding
 │   │   │
 │   │   ├── mahbers/
-│   │   │   ├── page.tsx            # List all mahbers
+│   │   │   ├── page.tsx             # List all mahbers (empty state for new users)
 │   │   │   ├── create/
 │   │   │   │   └── page.tsx
 │   │   │   ├── join/
 │   │   │   │   └── page.tsx
 │   │   │   └── [id]/
-│   │   │       ├── page.tsx        # Mahber overview
+│   │   │       ├── page.tsx         # Mahber overview
+│   │   │       ├── loading.tsx
+│   │   │       ├── error.tsx
 │   │   │       ├── members/
 │   │   │       │   ├── page.tsx
+│   │   │       │   ├── loading.tsx
 │   │   │       │   └── [memberId]/
 │   │   │       │       └── page.tsx
+│   │   │       ├── join-requests/
+│   │   │       │   └── page.tsx
 │   │   │       ├── payments/
 │   │   │       │   ├── page.tsx
 │   │   │       │   ├── initiate/
@@ -106,6 +123,8 @@ mahberconnect-web/
 │   │   │       ├── ledger/
 │   │   │       │   └── page.tsx
 │   │   │       ├── fines/
+│   │   │       │   └── page.tsx
+│   │   │       ├── lottery/
 │   │   │       │   └── page.tsx
 │   │   │       ├── events/
 │   │   │       │   ├── page.tsx
@@ -130,20 +149,24 @@ mahberconnect-web/
 │   │   │       └── settings/
 │   │   │           └── page.tsx
 │   │   │
+│   │   ├── payments/
+│   │   │   └── callback/
+│   │   │       └── page.tsx         # Chapa redirect return page
+│   │   │
 │   │   ├── profile/
 │   │   │   └── page.tsx
 │   │   └── settings/
 │   │       └── page.tsx
 │   │
-│   ├── api/                         # API routes (optional)
-│   │   └── webhook/
-│   │       └── route.ts
-│   │
 │   ├── layout.tsx                   # Root layout
 │   ├── globals.css
 │   ├── providers.tsx
+│   ├── loading.tsx
+│   ├── error.tsx
 │   └── not-found.tsx
-│
+```
+
+```
 ├── components/
 │   ├── ui/                          # shadcn/ui components
 │   │   ├── button.tsx
@@ -159,11 +182,19 @@ mahberconnect-web/
 │   │   └── ...
 │   │
 │   ├── layout/
+│   │   ├── public-navbar.tsx        # Landing page navbar
 │   │   ├── header.tsx
 │   │   ├── sidebar.tsx
 │   │   ├── footer.tsx
 │   │   ├── breadcrumbs.tsx
 │   │   └── mobile-nav.tsx
+│   │
+│   ├── landing/
+│   │   ├── hero-section.tsx
+│   │   ├── features-section.tsx
+│   │   ├── mahber-types-section.tsx
+│   │   ├── how-it-works-section.tsx
+│   │   └── cta-section.tsx
 │   │
 │   ├── auth/
 │   │   ├── login-form.tsx
@@ -174,6 +205,7 @@ mahberconnect-web/
 │   │   ├── mahber-card.tsx
 │   │   ├── mahber-list.tsx
 │   │   ├── mahber-stats.tsx
+│   │   ├── mahber-empty-state.tsx
 │   │   ├── create-mahber-form.tsx
 │   │   └── mahber-config-form.tsx
 │   │
@@ -189,17 +221,19 @@ mahberconnect-web/
 │   │   ├── payment-form.tsx
 │   │   ├── payment-table.tsx
 │   │   ├── payment-status-badge.tsx
+│   │   ├── payment-callback-handler.tsx
 │   │   ├── ledger-table.tsx
 │   │   ├── balance-card.tsx
 │   │   ├── financial-chart.tsx
 │   │   ├── fine-table.tsx
+│   │   ├── lottery-results.tsx
 │   │   └── waive-fine-dialog.tsx
 │   │
 │   ├── events/
 │   │   ├── event-card.tsx
 │   │   ├── event-list.tsx
 │   │   ├── event-form.tsx
-│   │   ├── qr-generator.tsx
+│   │   ├── qr-display.tsx           # Renders the data URL image from backend
 │   │   ├── qr-scanner.tsx
 │   │   ├── photo-gallery.tsx
 │   │   ├── photo-upload.tsx
@@ -302,40 +336,48 @@ mahberconnect-web/
 
 ## 3. Complete Page Map
 
-### 3.1 Authentication Pages
+### 3.1 Public Pages (No Auth Required)
+
+| Route | Page | Description |
+|-------|------|-------------|
+| `/` | Landing Page | Hero, features, mahber types, how-it-works, CTA |
+| `/about` | About Page | Project info, team, contact |
+
+### 3.2 Authentication Pages
 
 | Route | Page | API Calls | Auth Required |
 |-------|------|-----------|---------------|
 | `/login` | Login | `POST /auth/login` | No |
 | `/register` | Register | `POST /auth/register` | No |
-| `/forgot-password` | Forgot Password (future) | `POST /auth/forgot-password` | No |
 
-### 3.2 Dashboard Pages
+### 3.3 Dashboard Pages
 
 | Route | Page | API Calls | Auth Required |
 |-------|------|-----------|---------------|
-| `/` or `/mahbers` | Mahber List (Home) | `GET /mahbers` | Yes |
+| `/mahbers` | Mahber List (Home) | `GET /mahbers` | Yes |
+| `/onboarding` | First-time Onboarding | — | Yes |
 | `/profile` | User Profile | `GET /auth/profile`, `PUT /auth/profile` | Yes |
-| `/settings` | App Settings | - | Yes |
+| `/settings` | App Settings | — | Yes |
+| `/payments/callback` | Chapa Return Page | `GET /mahbers/:id/payments/:paymentId` | Yes |
 
-### 3.3 Mahber Management
+### 3.4 Mahber Management
 
 | Route | Page | API Calls | Auth Required | Role Required |
 |-------|------|-----------|---------------|---------------|
-| `/mahbers/create` | Create Mahber | `POST /mahbers` | Yes | - |
-| `/mahbers/join` | Join Mahber | `POST /mahbers/:id/join-requests` | Yes | - |
+| `/mahbers/create` | Create Mahber | `POST /mahbers` | Yes | — |
+| `/mahbers/join` | Join Mahber | `POST /mahbers/:id/join-requests` | Yes | — |
 | `/mahbers/[id]` | Mahber Overview | `GET /mahbers/:id` | Yes | Member |
 | `/mahbers/[id]/settings` | Mahber Settings | `GET /mahbers/:id`, `PUT /mahbers/:id` | Yes | Admin |
 
-### 3.4 Membership Pages
+### 3.5 Membership Pages
 
 | Route | Page | API Calls | Auth Required | Role Required |
 |-------|------|-----------|---------------|---------------|
 | `/mahbers/[id]/members` | Members List | `GET /mahbers/:id/members` | Yes | Member |
 | `/mahbers/[id]/members/[memberId]` | Member Details | `GET /mahbers/:id/members/:memberId` | Yes | Member |
-| `/mahbers/[id]/join-requests` | Join Requests (Admin) | `GET /mahbers/:id/join-requests`, `PUT /mahbers/:id/join-requests/:requestId` | Yes | Admin |
+| `/mahbers/[id]/join-requests` | Join Requests | `GET /mahbers/:id/join-requests`, `PUT /mahbers/:id/join-requests/:requestId` | Yes | Admin |
 
-### 3.5 Financial Pages
+### 3.6 Financial Pages
 
 | Route | Page | API Calls | Auth Required | Role Required |
 |-------|------|-----------|---------------|---------------|
@@ -344,38 +386,42 @@ mahberconnect-web/
 | `/mahbers/[id]/payments/[paymentId]` | Payment Details | `GET /mahbers/:id/payments/:paymentId` | Yes | Member |
 | `/mahbers/[id]/ledger` | Ledger | `GET /mahbers/:id/ledger`, `GET /mahbers/:id/balance` | Yes | Member |
 | `/mahbers/[id]/fines` | Fines | `GET /mahbers/:id/fines`, `POST /mahbers/:id/fines/:fineId/waive` | Yes | Member |
-| `/mahbers/[id]/reports/financial` | Financial Report | `GET /mahbers/:id/reports/financial` | Yes | Treasurer |
+| `/mahbers/[id]/lottery` | Lottery History | `GET /mahbers/:id/lottery/history` | Yes | Member |
+| `/mahbers/[id]/lottery` | Execute Lottery (Equb) | `POST /mahbers/:id/lottery/execute` | Yes | Treasurer (`MANAGE_FINANCES`) |
+| `/mahbers/[id]/reports/financial` | Financial Report | `GET /mahbers/:id/reports/financial` | Yes | Treasurer (`MANAGE_FINANCES`) |
 
-### 3.6 Events Pages
+### 3.7 Events Pages
 
 | Route | Page | API Calls | Auth Required | Role Required |
 |-------|------|-----------|---------------|---------------|
 | `/mahbers/[id]/events` | Events List | `GET /mahbers/:id/events` | Yes | Member |
-| `/mahbers/[id]/events/create` | Create Event | `POST /mahbers/:id/events` | Yes | Secretary+ |
+| `/mahbers/[id]/events/create` | Create Event | `POST /mahbers/:id/events` | Yes | Secretary or Admin (`CREATE_EVENTS`) |
 | `/mahbers/[id]/events/[eventId]` | Event Details | `GET /mahbers/:id/events/:eventId` | Yes | Member |
-| `/mahbers/[id]/events/[eventId]/qr` | QR Code Generator | `GET /mahbers/:id/events/:eventId/qr` | Yes | Secretary+ |
+| `/mahbers/[id]/events/[eventId]/qr` | QR Code Display | `GET /mahbers/:id/events/:eventId/qr` | Yes | Secretary or Admin (`CREATE_EVENTS`) |
 | `/mahbers/[id]/events/[eventId]/scan` | QR Scanner | `POST /mahbers/:id/events/:eventId/attendance` | Yes | Member |
 | `/mahbers/[id]/events/[eventId]/photos` | Photo Gallery | `GET /mahbers/:id/events/:eventId/photos`, `POST /mahbers/:id/events/:eventId/photos` | Yes | Member |
 
-### 3.7 Communication Pages
+### 3.8 Communication Pages
 
 | Route | Page | API Calls | Auth Required | Role Required |
 |-------|------|-----------|---------------|---------------|
 | `/mahbers/[id]/chat` | Chat | `GET /mahbers/:id/chat/messages`, `POST /mahbers/:id/chat/messages` | Yes | Member |
-| `/mahbers/[id]/announcements` | Announcements | `GET /mahbers/:id/announcements`, `POST /mahbers/:id/announcements` | Yes | Member |
-| `/mahbers/[id]/polls` | Polls | `GET /mahbers/:id/polls`, `POST /mahbers/:id/polls`, `POST /mahbers/:id/polls/:pollId/vote` | Yes | Member |
+| `/mahbers/[id]/announcements` | Announcements | `GET /mahbers/:id/announcements`, `POST /mahbers/:id/announcements` | Yes | Member (create requires `SEND_ANNOUNCEMENTS`) |
+| `/mahbers/[id]/polls` | Polls | `GET /mahbers/:id/polls`, `POST /mahbers/:id/polls`, `POST /mahbers/:id/polls/:pollId/vote` | Yes | Member (create requires `SEND_ANNOUNCEMENTS`) |
 
-### 3.8 Admin Pages
+### 3.9 Admin Pages
 
 | Route | Page | API Calls | Auth Required | Role Required |
 |-------|------|-----------|---------------|---------------|
-| `/mahbers/[id]/audit` | Audit Trail | `GET /mahbers/:id/audit-trail` | Yes | Admin |
+| `/mahbers/[id]/audit` | Audit Trail | `GET /mahbers/:id/audit-trail` | Yes | Admin (`MANAGE_MEMBERS`) |
 
 ---
 
 ## 4. API Integration Reference
 
 ### 4.1 API Client Setup
+
+Token storage uses `localStorage` exclusively. The Next.js middleware uses a separate `auth_token` cookie that is set client-side after login, so both the middleware (server-side) and the API client (client-side) stay in sync.
 
 ```typescript
 // lib/api/client.ts
@@ -387,31 +433,24 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  withCredentials: true, // For cookies
+  headers: { 'Content-Type': 'application/json' },
 });
 
-// Request interceptor - add JWT token
-apiClient.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('access_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
+// Attach JWT from localStorage on every request
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem('access_token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
 
-// Response interceptor - handle errors
+// Global error handling
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Token expired or invalid
       localStorage.removeItem('access_token');
+      // Also clear the auth cookie used by middleware
+      document.cookie = 'auth_token=; Max-Age=0; path=/';
       window.location.href = '/login';
       toast.error('Session expired. Please login again.');
     } else if (error.response?.status === 403) {
@@ -426,12 +465,36 @@ apiClient.interceptors.response.use(
 );
 ```
 
+After a successful login, set both localStorage and the cookie:
+
+```typescript
+// lib/store/auth-store.ts (login action)
+login: async (phone, password) => {
+  const response = await authApi.login({ phone, password });
+  const { access_token, user } = response.data;
+
+  // For API client
+  localStorage.setItem('access_token', access_token);
+
+  // For Next.js middleware (httpOnly not possible client-side, but sufficient for route guarding)
+  document.cookie = `auth_token=${access_token}; path=/; SameSite=Lax`;
+
+  set({ user, token: access_token, isAuthenticated: true });
+},
+
+logout: () => {
+  localStorage.removeItem('access_token');
+  document.cookie = 'auth_token=; Max-Age=0; path=/';
+  set({ user: null, token: null, isAuthenticated: false });
+},
+```
+
 ### 4.2 Complete API Endpoint Map
 
 #### Authentication
 ```typescript
 POST   /auth/register          // Register new user
-POST   /auth/login             // Login
+POST   /auth/login             // Login → returns { access_token, user }
 GET    /auth/profile           // Get current user
 PUT    /auth/profile           // Update profile
 ```
@@ -439,37 +502,39 @@ PUT    /auth/profile           // Update profile
 #### Mahbers
 ```typescript
 POST   /mahbers                // Create mahber
-GET    /mahbers                // List user's mahbers
+GET    /mahbers                // List user's mahbers (only mahbers the user belongs to)
+GET    /mahbers/public         // Search public mahbers by name (?q=query) — for join page discovery
 GET    /mahbers/:id            // Get mahber details
-PUT    /mahbers/:id            // Update mahber
-DELETE /mahbers/:id            // Delete mahber
+GET    /mahbers/:id/statistics // Summary stats: member count, active members, upcoming events, payments
+PUT    /mahbers/:id            // Update mahber (Admin only)
+DELETE /mahbers/:id            // Delete mahber (Admin only, only if no other active members)
 ```
 
 #### Join Requests
 ```typescript
 POST   /mahbers/:id/join-requests              // Submit join request
 GET    /mahbers/:id/join-requests              // List join requests (Admin)
-PUT    /mahbers/:id/join-requests/:requestId   // Approve/Reject request
+PUT    /mahbers/:id/join-requests/:requestId   // Approve/Reject request (Admin)
 ```
 
 #### Members
 ```typescript
 GET    /mahbers/:id/members                    // List members (paginated)
 GET    /mahbers/:id/members/:memberId          // Get member details
-POST   /mahbers/:id/members/:memberId/suspend  // Suspend member
-POST   /mahbers/:id/members/:memberId/reinstate // Reinstate member
+POST   /mahbers/:id/members/:memberId/suspend  // Suspend member (Admin)
+POST   /mahbers/:id/members/:memberId/reinstate // Reinstate member (Admin)
 ```
 
 #### Roles
 ```typescript
-PUT    /mahbers/:id/members/:memberId/role     // Assign role
-POST   /mahbers/:id/roles                      // Create custom role
+PUT    /mahbers/:id/members/:memberId/role     // Assign role (Admin, MANAGE_ROLES)
+POST   /mahbers/:id/roles                      // Create custom role (Admin, MANAGE_ROLES)
 ```
 
 #### Payments
 ```typescript
-POST   /mahbers/:id/payments/initiate          // Initiate payment
-GET    /mahbers/:id/payments                   // List payments (paginated, filterable)
+POST   /mahbers/:id/payments/initiate          // Initiate payment → returns { checkout_url, ... }
+GET    /mahbers/:id/payments                   // List payments (paginated, filterable by status/date)
 GET    /mahbers/:id/payments/:paymentId        // Get payment details
 POST   /mahbers/:id/payments/:paymentId/retry  // Retry failed payment
 ```
@@ -477,29 +542,36 @@ POST   /mahbers/:id/payments/:paymentId/retry  // Retry failed payment
 #### Ledger & Financial
 ```typescript
 GET    /mahbers/:id/ledger                     // Get ledger entries (paginated, filterable)
-GET    /mahbers/:id/balance                    // Get member balance
-GET    /mahbers/:id/reports/financial          // Financial report (Treasurer)
+GET    /mahbers/:id/balance                    // Get member balance → returns { balance: string }
+GET    /mahbers/:id/reports/financial          // Financial report (MANAGE_FINANCES permission)
 ```
 
 #### Fines
 ```typescript
-GET    /mahbers/:id/fines                      // List fines (filterable)
-POST   /mahbers/:id/fines/:fineId/waive        // Waive fine (Treasurer)
+GET    /mahbers/:id/fines                      // List fines (filterable by memberId, isWaived)
+POST   /mahbers/:id/fines/:fineId/waive        // Waive fine (MANAGE_FINANCES permission)
 ```
 
 #### Events
 ```typescript
-POST   /mahbers/:id/events                     // Create event
-GET    /mahbers/:id/events                     // List events (paginated, filterable)
+POST   /mahbers/:id/events                     // Create event (CREATE_EVENTS permission)
+GET    /mahbers/:id/events                     // List events (paginated)
 GET    /mahbers/:id/events/:eventId            // Get event details
-PUT    /mahbers/:id/events/:eventId            // Update event
-DELETE /mahbers/:id/events/:eventId            // Cancel event
+PUT    /mahbers/:id/events/:eventId            // Update event (CREATE_EVENTS permission)
+DELETE /mahbers/:id/events/:eventId            // Cancel event (CREATE_EVENTS permission)
 ```
 
-#### Attendance
+#### Attendance & QR
 ```typescript
-GET    /mahbers/:id/events/:eventId/qr         // Generate QR code (Admin)
-POST   /mahbers/:id/events/:eventId/attendance // Record attendance
+// Returns { qr_code: "data:image/png;base64,..." } — a pre-rendered PNG data URL
+// Do NOT pass this to qrcode.react; render it directly as <img src={qr_code} />
+GET    /mahbers/:id/events/:eventId/qr              // Generate QR image (CREATE_EVENTS permission)
+
+// Body: { qr_token: string } — the JWT string scanned from the QR image
+POST   /mahbers/:id/events/:eventId/attendance      // Record attendance via QR token
+
+// Triggers the attendance processor job — applies absence fines for mandatory events
+POST   /mahbers/:id/events/:eventId/process-attendance // Process attendance (CREATE_EVENTS permission)
 ```
 
 #### Photos
@@ -513,20 +585,22 @@ DELETE /mahbers/:id/events/:eventId/photos/:photoId // Delete photo
 ```typescript
 POST   /mahbers/:id/chat/messages              // Send message
 GET    /mahbers/:id/chat/messages              // List messages (paginated)
-PUT    /mahbers/:id/chat/messages/:messageId   // Edit message
-DELETE /mahbers/:id/chat/messages/:messageId   // Delete message
+PUT    /mahbers/:id/chat/messages/:messageId   // Edit message (own messages only)
+DELETE /mahbers/:id/chat/messages/:messageId   // Delete message (own messages only)
 ```
 
 #### Announcements
 ```typescript
-POST   /mahbers/:id/announcements              // Create announcement (Admin)
+// Creating requires SEND_ANNOUNCEMENTS permission (Admin or Secretary)
+POST   /mahbers/:id/announcements              // Create announcement
 GET    /mahbers/:id/announcements              // List announcements (paginated)
 POST   /mahbers/:id/announcements/:announcementId/read // Mark as read
 ```
 
 #### Polls
 ```typescript
-POST   /mahbers/:id/polls                      // Create poll (Admin)
+// Creating requires SEND_ANNOUNCEMENTS permission (Admin or Secretary)
+POST   /mahbers/:id/polls                      // Create poll
 GET    /mahbers/:id/polls                      // List polls (paginated)
 POST   /mahbers/:id/polls/:pollId/vote         // Cast vote
 GET    /mahbers/:id/polls/:pollId/results      // Get results
@@ -534,13 +608,22 @@ GET    /mahbers/:id/polls/:pollId/results      // Get results
 
 #### Notifications
 ```typescript
-POST   /notifications/register-device          // Register FCM token (for web push)
+POST   /notifications/register-device          // Register FCM token
+// Note: DELETE with body — use axios.delete(url, { data: dto })
 DELETE /notifications/unregister-device        // Unregister device
 ```
 
 #### Audit Trail
 ```typescript
-GET    /mahbers/:id/audit-trail                // Get audit logs (Admin, paginated, filterable)
+// Requires MANAGE_MEMBERS permission (Admin only)
+GET    /mahbers/:id/audit-trail                // Get audit logs (paginated, filterable)
+```
+
+#### Lottery (Equb only)
+```typescript
+GET    /mahbers/:id/lottery/history   // Get all past lottery draws
+POST   /mahbers/:id/lottery/execute   // Manually trigger a lottery draw (MANAGE_FINANCES permission)
+                                      // Body: { operationalCostRate?: number, fineThreshold?: number }
 ```
 
 #### Health
@@ -551,60 +634,91 @@ GET    /                                       // API info
 
 ---
 
-
 ## 5. Component Library
 
 ### 5.1 shadcn/ui Components to Install
 
 ```bash
 npx shadcn-ui@latest init
-npx shadcn-ui@latest add button
-npx shadcn-ui@latest add input
-npx shadcn-ui@latest add card
-npx shadcn-ui@latest add dialog
-npx shadcn-ui@latest add dropdown-menu
-npx shadcn-ui@latest add table
-npx shadcn-ui@latest add tabs
-npx shadcn-ui@latest add badge
-npx shadcn-ui@latest add avatar
-npx shadcn-ui@latest add toast
-npx shadcn-ui@latest add form
-npx shadcn-ui@latest add select
-npx shadcn-ui@latest add checkbox
-npx shadcn-ui@latest add radio-group
-npx shadcn-ui@latest add switch
-npx shadcn-ui@latest add textarea
-npx shadcn-ui@latest add calendar
-npx shadcn-ui@latest add popover
-npx shadcn-ui@latest add alert
-npx shadcn-ui@latest add skeleton
-npx shadcn-ui@latest add separator
-npx shadcn-ui@latest add scroll-area
-npx shadcn-ui@latest add sheet
-npx shadcn-ui@latest add tooltip
+npx shadcn-ui@latest add button input card dialog dropdown-menu table tabs badge avatar toast form select checkbox radio-group switch textarea calendar popover alert skeleton separator scroll-area sheet tooltip progress
 ```
 
 ### 5.2 Custom Components
 
+#### QR Display Component
+```typescript
+// components/events/qr-display.tsx
+// The backend returns a base64 PNG data URL, not a raw token.
+// Render it directly — no qrcode.react needed.
+interface QRDisplayProps {
+  dataUrl: string;   // "data:image/png;base64,..."
+  eventTitle: string;
+  expiresAt: Date;
+}
+
+export function QRDisplay({ dataUrl, eventTitle, expiresAt }: QRDisplayProps) {
+  const download = () => {
+    const link = document.createElement('a');
+    link.download = `${eventTitle}-qr.png`;
+    link.href = dataUrl;
+    link.click();
+  };
+
+  return (
+    <div className="flex flex-col items-center gap-4">
+      <img src={dataUrl} alt="Event QR Code" className="w-72 h-72" />
+      <p className="font-semibold">{eventTitle}</p>
+      <CountdownTimer expiresAt={expiresAt} />
+      <div className="flex gap-2">
+        <Button onClick={download}>Download</Button>
+        <Button variant="outline" onClick={() => window.print()}>Print</Button>
+      </div>
+    </div>
+  );
+}
+```
+
+#### QR Scanner Component
+```typescript
+// components/events/qr-scanner.tsx
+// Uses html5-qrcode to scan the QR image and extract the JWT token string.
+// That token string is then sent to POST /attendance as { qr_token: string }.
+import { Html5QrcodeScanner } from 'html5-qrcode';
+
+interface QRScannerProps {
+  onScan: (qrToken: string) => void;
+}
+
+export function QRScanner({ onScan }: QRScannerProps) {
+  useEffect(() => {
+    const scanner = new Html5QrcodeScanner('qr-reader', { fps: 10, qrbox: 250 }, false);
+    scanner.render((decodedText) => {
+      onScan(decodedText);
+      scanner.clear();
+    }, console.error);
+    return () => { scanner.clear(); };
+  }, [onScan]);
+
+  return <div id="qr-reader" className="w-full max-w-md" />;
+}
+```
+
 #### Phone Input Component
 ```typescript
 // components/common/phone-input.tsx
+// Auto-format: +251 XXX XXX XXX
+// Validation: exactly 9 digits after +251 (matches backend regex /^\+251[0-9]{9}$/)
 interface PhoneInputProps {
   value: string;
   onChange: (value: string) => void;
   error?: string;
 }
-
-// Features:
-// - Auto-format: +251 XXX XXX XXX
-// - Validation: Must be exactly 9 digits after +251
-// - Ethiopian flag icon
-// - Error state styling
 ```
 
 #### Currency Input Component
 ```typescript
 // components/common/currency-input.tsx
+// Format: 1,234.56 ETB — 2 decimal places, thousand separators
 interface CurrencyInputProps {
   value: number;
   onChange: (value: number) => void;
@@ -612,48 +726,22 @@ interface CurrencyInputProps {
   min?: number;
   max?: number;
 }
-
-// Features:
-// - Format: 1,234.56 ETB
-// - Thousand separators
-// - Decimal precision (2 places)
-// - Min/max validation
 ```
 
 #### Data Table Component
 ```typescript
 // components/common/data-table.tsx
-// Built with TanStack Table
-// Features:
-// - Sorting
-// - Filtering
-// - Pagination
-// - Column visibility toggle
-// - Row selection
-// - Export to CSV
+// Built with TanStack Table v8
+// Features: sorting, filtering, pagination, column visibility, row selection, CSV export
 ```
 
-#### QR Generator Component
+#### Lottery Results Component
 ```typescript
-// components/events/qr-generator.tsx
-// Uses qrcode.react
-// Features:
-// - Generate QR from token
-// - Customizable size
-// - Download as image
-// - Print functionality
-// - Expiration countdown
-```
-
-#### QR Scanner Component
-```typescript
-// components/events/qr-scanner.tsx
-// Uses html5-qrcode
-// Features:
-// - Camera permission request
-// - Scanning frame overlay
-// - Success/error feedback
-// - Fallback for no camera
+// components/financial/lottery-results.tsx
+// Displays Equb lottery draw history: winner, payout amount, eligible members, date
+// Data sourced from GET /mahbers/:id/lottery/history
+// For Equb mahbers only — conditionally shown based on mahber.type === 'EQUB'
+// Treasurer also sees an "Execute Draw" button that calls POST /mahbers/:id/lottery/execute
 ```
 
 ---
@@ -670,8 +758,7 @@ interface AuthState {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  
-  // Actions
+
   login: (phone: string, password: string) => Promise<void>;
   register: (data: RegisterDto) => Promise<void>;
   logout: () => void;
@@ -684,19 +771,19 @@ const useAuthStore = create<AuthState>((set) => ({
   token: null,
   isAuthenticated: false,
   isLoading: true,
-  
+
   login: async (phone, password) => {
-    const response = await authApi.login({ phone, password });
-    localStorage.setItem('access_token', response.access_token);
-    set({ user: response.user, token: response.access_token, isAuthenticated: true });
+    const { data } = await authApi.login({ phone, password });
+    localStorage.setItem('access_token', data.access_token);
+    document.cookie = `auth_token=${data.access_token}; path=/; SameSite=Lax`;
+    set({ user: data.user, token: data.access_token, isAuthenticated: true });
   },
-  
+
   logout: () => {
     localStorage.removeItem('access_token');
+    document.cookie = 'auth_token=; Max-Age=0; path=/';
     set({ user: null, token: null, isAuthenticated: false });
   },
-  
-  // ... other actions
 }));
 ```
 
@@ -707,8 +794,7 @@ interface MahberState {
   mahbers: Mahber[];
   currentMahber: Mahber | null;
   isLoading: boolean;
-  
-  // Actions
+
   fetchMahbers: () => Promise<void>;
   selectMahber: (id: string) => void;
   createMahber: (data: CreateMahberDto) => Promise<Mahber>;
@@ -723,8 +809,7 @@ interface MahberState {
 interface NotificationState {
   notifications: Notification[];
   unreadCount: number;
-  
-  // Actions
+
   addNotification: (notification: Notification) => void;
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
@@ -734,6 +819,8 @@ interface NotificationState {
 
 ### 6.2 React Query Setup
 
+> Note: TanStack Query v5 renamed `cacheTime` to `gcTime`. Use `gcTime` below.
+
 ```typescript
 // app/providers.tsx
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -741,8 +828,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 60 * 1000, // 1 minute
-      cacheTime: 5 * 60 * 1000, // 5 minutes
+      staleTime: 60 * 1000,       // 1 minute
+      gcTime: 5 * 60 * 1000,      // 5 minutes (was cacheTime in v4)
       refetchOnWindowFocus: false,
       retry: 1,
     },
@@ -763,23 +850,26 @@ export function Providers({ children }: { children: React.ReactNode }) {
 #### useAuth Hook
 ```typescript
 // lib/hooks/use-auth.ts
+// Role names match backend PascalCase: 'Admin', 'Treasurer', 'Secretary', 'Member'
 export function useAuth() {
   const { user, isAuthenticated, login, logout } = useAuthStore();
-  
+  const role = user?.role?.name as string | undefined;
+
   return {
     user,
     isAuthenticated,
     login,
     logout,
-    isAdmin: user?.role === 'admin',
-    isTreasurer: user?.role === 'treasurer',
+    hasPermission: (permission: string) => hasPermission(role ?? '', permission),
+    isAdmin: role === 'Admin',
+    isTreasurer: role === 'Treasurer',
+    isSecretary: role === 'Secretary',
   };
 }
 ```
 
 #### useMahber Hook
 ```typescript
-// lib/hooks/use-mahber.ts
 export function useMahber(mahberId: string) {
   return useQuery({
     queryKey: ['mahber', mahberId],
@@ -791,7 +881,6 @@ export function useMahber(mahberId: string) {
 
 #### usePayments Hook
 ```typescript
-// lib/hooks/use-payments.ts
 export function usePayments(mahberId: string, filters?: PaymentFilters) {
   return useQuery({
     queryKey: ['payments', mahberId, filters],
@@ -806,26 +895,37 @@ export function usePayments(mahberId: string, filters?: PaymentFilters) {
 ## 7. Authentication & Authorization
 
 ### 7.1 Next.js Middleware
+
+The middleware reads the `auth_token` cookie (set client-side after login). Public routes (`/`, `/about`) are excluded from auth checks.
+
 ```typescript
 // middleware.ts
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+const PUBLIC_PATHS = ['/', '/about'];
+const AUTH_PATHS = ['/login', '/register'];
+
 export function middleware(request: NextRequest) {
-  const token = request.cookies.get('access_token')?.value;
-  const isAuthPage = request.nextUrl.pathname.startsWith('/login') || 
-                     request.nextUrl.pathname.startsWith('/register');
-  
-  // Redirect to login if not authenticated
-  if (!token && !isAuthPage) {
+  const token = request.cookies.get('auth_token')?.value;
+  const { pathname } = request.nextUrl;
+
+  const isPublicPath = PUBLIC_PATHS.includes(pathname);
+  const isAuthPath = AUTH_PATHS.some((p) => pathname.startsWith(p));
+
+  // Allow public pages always
+  if (isPublicPath) return NextResponse.next();
+
+  // Redirect unauthenticated users to login
+  if (!token && !isAuthPath) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
-  
-  // Redirect to home if authenticated and trying to access auth pages
-  if (token && isAuthPage) {
+
+  // Redirect authenticated users away from login/register
+  if (token && isAuthPath) {
     return NextResponse.redirect(new URL('/mahbers', request.url));
   }
-  
+
   return NextResponse.next();
 }
 
@@ -835,6 +935,8 @@ export const config = {
 ```
 
 ### 7.2 Permission Checking
+
+Role names are PascalCase to match the backend (`Admin`, `Treasurer`, `Secretary`, `Member`). The `role` field on a membership is a JSON object `{ name: string, permissions: string[] }`.
 
 ```typescript
 // lib/utils/permissions.ts
@@ -847,44 +949,34 @@ export const PERMISSIONS = {
   MANAGE_ROLES: 'manage_roles',
 } as const;
 
-export const ROLE_PERMISSIONS = {
-  admin: Object.values(PERMISSIONS),
-  treasurer: [PERMISSIONS.MANAGE_FINANCES, PERMISSIONS.VIEW_REPORTS],
-  secretary: [PERMISSIONS.CREATE_EVENTS, PERMISSIONS.SEND_ANNOUNCEMENTS],
-  member: [],
+// Mirrors backend src/membership/rbac/roles.ts DEFAULT_ROLES exactly
+export const ROLE_PERMISSIONS: Record<string, string[]> = {
+  Admin: Object.values(PERMISSIONS),
+  Treasurer: [PERMISSIONS.MANAGE_FINANCES, PERMISSIONS.VIEW_REPORTS],
+  Secretary: [PERMISSIONS.CREATE_EVENTS, PERMISSIONS.SEND_ANNOUNCEMENTS],
+  Member: [],
 };
 
-export function hasPermission(role: string, permission: string): boolean {
-  return ROLE_PERMISSIONS[role]?.includes(permission) ?? false;
+export function hasPermission(roleName: string, permission: string): boolean {
+  return ROLE_PERMISSIONS[roleName]?.includes(permission) ?? false;
 }
 ```
 
-### 7.3 Protected Route Component
+### 7.3 Protected UI Component
 
 ```typescript
-// components/common/protected-route.tsx
-interface ProtectedRouteProps {
+// components/common/protected-ui.tsx
+// Use this to conditionally render UI elements based on permissions.
+// Route-level protection is handled by middleware + server-side checks.
+interface ProtectedUIProps {
+  permission: string;
   children: React.ReactNode;
-  requiredPermission?: string;
   fallback?: React.ReactNode;
 }
 
-export function ProtectedRoute({ 
-  children, 
-  requiredPermission,
-  fallback 
-}: ProtectedRouteProps) {
-  const { user, isAuthenticated } = useAuth();
-  
-  if (!isAuthenticated) {
-    redirect('/login');
-  }
-  
-  if (requiredPermission && !hasPermission(user.role, requiredPermission)) {
-    return fallback || <div>Access Denied</div>;
-  }
-  
-  return <>{children}</>;
+export function ProtectedUI({ permission, children, fallback = null }: ProtectedUIProps) {
+  const { hasPermission } = useAuth();
+  return hasPermission(permission) ? <>{children}</> : <>{fallback}</>;
 }
 ```
 
@@ -902,30 +994,22 @@ import { io, Socket } from 'socket.io-client';
 export function useWebSocket(mahberId: string) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  
+
   useEffect(() => {
     const token = localStorage.getItem('access_token');
-    
+
     const socketInstance = io(process.env.NEXT_PUBLIC_WS_URL!, {
       auth: { token },
       query: { mahberId },
     });
-    
-    socketInstance.on('connect', () => {
-      setIsConnected(true);
-    });
-    
-    socketInstance.on('disconnect', () => {
-      setIsConnected(false);
-    });
-    
+
+    socketInstance.on('connect', () => setIsConnected(true));
+    socketInstance.on('disconnect', () => setIsConnected(false));
+
     setSocket(socketInstance);
-    
-    return () => {
-      socketInstance.disconnect();
-    };
+    return () => { socketInstance.disconnect(); };
   }, [mahberId]);
-  
+
   return { socket, isConnected };
 }
 ```
@@ -937,70 +1021,48 @@ export function useWebSocket(mahberId: string) {
 export function ChatContainer({ mahberId }: { mahberId: string }) {
   const { socket } = useWebSocket(mahberId);
   const [messages, setMessages] = useState<Message[]>([]);
-  
+
   useEffect(() => {
     if (!socket) return;
-    
-    // Listen for new messages
-    socket.on('message:new', (message: Message) => {
-      setMessages((prev) => [...prev, message]);
-    });
-    
-    // Listen for message edits
-    socket.on('message:edit', (updatedMessage: Message) => {
-      setMessages((prev) =>
-        prev.map((msg) => (msg.id === updatedMessage.id ? updatedMessage : msg))
-      );
-    });
-    
-    // Listen for message deletes
-    socket.on('message:delete', (messageId: string) => {
-      setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
-    });
-    
+
+    socket.on('message:new', (msg: Message) =>
+      setMessages((prev) => [...prev, msg]));
+    socket.on('message:edit', (updated: Message) =>
+      setMessages((prev) => prev.map((m) => m.id === updated.id ? updated : m)));
+    socket.on('message:delete', (id: string) =>
+      setMessages((prev) => prev.filter((m) => m.id !== id)));
+
     return () => {
       socket.off('message:new');
       socket.off('message:edit');
       socket.off('message:delete');
     };
   }, [socket]);
-  
-  // ... rest of component
 }
 ```
 
 ### 8.3 Notification Real-time Updates
 
 ```typescript
-// app/layout.tsx
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const { socket } = useWebSocket('global');
-  const { addNotification } = useNotificationStore();
-  
-  useEffect(() => {
-    if (!socket) return;
-    
-    socket.on('notification:new', (notification: Notification) => {
-      addNotification(notification);
-      toast.info(notification.title, {
-        description: notification.body,
-      });
-    });
-    
-    return () => {
-      socket.off('notification:new');
-    };
-  }, [socket]);
-  
-  return <html>{children}</html>;
-}
+// Attach in the dashboard layout, not root layout, to avoid running before auth
+// app/(dashboard)/layout.tsx
+useEffect(() => {
+  if (!socket) return;
+  socket.on('notification:new', (notification: Notification) => {
+    addNotification(notification);
+    toast.info(notification.title, { description: notification.body });
+  });
+  return () => { socket.off('notification:new'); };
+}, [socket]);
 ```
 
 ---
 
 ## 9. Internationalization (i18n)
 
-### 9.1 next-intl Setup
+### 9.1 next-intl Setup (App Router)
+
+Use the `[locale]` folder approach. Do **not** add an `i18n` key to `next.config.js` — that is Pages Router only and conflicts with App Router.
 
 ```typescript
 // app/[locale]/layout.tsx
@@ -1021,12 +1083,12 @@ export default async function LocaleLayout({
   let messages;
   try {
     messages = (await import(`../../messages/${locale}.json`)).default;
-  } catch (error) {
+  } catch {
     notFound();
   }
-  
+
   return (
-    <html lang={locale} dir={locale === 'am' ? 'ltr' : 'ltr'}>
+    <html lang={locale}>
       <body>
         <NextIntlClientProvider locale={locale} messages={messages}>
           {children}
@@ -1040,63 +1102,79 @@ export default async function LocaleLayout({
 ### 9.2 Translation Files
 
 ```json
-// public/locales/en/common.json
+// messages/en.json
 {
+  "landing": {
+    "hero_title": "Manage Your Mahber, Equb & Iddir",
+    "hero_subtitle": "A modern platform for Ethiopian community groups",
+    "cta_start": "Get Started",
+    "cta_login": "Sign In"
+  },
   "auth": {
     "login": "Login",
     "register": "Register",
     "logout": "Logout",
     "phone": "Phone Number",
     "password": "Password",
-    "name": "Name"
+    "name": "Full Name"
   },
   "mahber": {
     "create": "Create Mahber",
     "join": "Join Mahber",
     "list": "My Mahbers",
-    "type": {
-      "MAHBER": "Mahber",
-      "EQUB": "Equb",
-      "IDDIR": "Iddir"
-    }
+    "empty_title": "No mahbers yet",
+    "empty_description": "Create a new mahber or join an existing one to get started.",
+    "type": { "MAHBER": "Mahber", "EQUB": "Equb", "IDDIR": "Iddir" }
   },
   "payment": {
     "initiate": "Make Payment",
     "amount": "Amount",
-    "status": {
-      "Pending": "Pending",
-      "Completed": "Completed",
-      "Failed": "Failed"
-    }
+    "status": { "Pending": "Pending", "Completed": "Completed", "Failed": "Failed" }
+  },
+  "roles": {
+    "Admin": "Admin",
+    "Treasurer": "Treasurer",
+    "Secretary": "Secretary",
+    "Member": "Member"
   }
 }
 ```
 
 ```json
-// public/locales/am/common.json
+// messages/am.json
 {
+  "landing": {
+    "hero_title": "መሀበርዎን፣ እቁብዎን እና እድርዎን ያስተዳድሩ",
+    "hero_subtitle": "ለኢትዮጵያ ማህበረሰብ ቡድኖች ዘመናዊ መድረክ",
+    "cta_start": "ጀምር",
+    "cta_login": "ግባ"
+  },
   "auth": {
     "login": "ግባ",
     "register": "ተመዝገብ",
     "logout": "ውጣ",
     "phone": "ስልክ ቁጥር",
     "password": "የይለፍ ቃል",
-    "name": "ስም"
+    "name": "ሙሉ ስም"
   },
   "mahber": {
     "create": "መሀበር ፍጠር",
     "join": "መሀበር ተቀላቀል",
     "list": "የኔ መሀበሮች",
-    "type": {
-      "MAHBER": "መሀበር",
-      "EQUB": "እቁብ",
-      "IDDIR": "እድር"
-    }
+    "empty_title": "ምንም መሀበር የለም",
+    "empty_description": "አዲስ መሀበር ፍጠር ወይም ነባር መሀበር ተቀላቀል።",
+    "type": { "MAHBER": "መሀበር", "EQUB": "እቁብ", "IDDIR": "እድር" }
+  },
+  "roles": {
+    "Admin": "አስተዳዳሪ",
+    "Treasurer": "ገንዘብ ያዥ",
+    "Secretary": "ፀሐፊ",
+    "Member": "አባል"
   }
 }
 ```
 
-### 9.3 Language Switcher Component
+### 9.3 Language Switcher
 
 ```typescript
 // components/common/language-switcher.tsx
@@ -1107,24 +1185,24 @@ export function LanguageSwitcher() {
   const locale = useLocale();
   const router = useRouter();
   const pathname = usePathname();
-  
+
   const switchLanguage = (newLocale: string) => {
-    const newPathname = pathname.replace(`/${locale}`, `/${newLocale}`);
-    router.push(newPathname);
+    // Replace the locale segment in the path
+    const segments = pathname.split('/');
+    segments[1] = newLocale;
+    router.push(segments.join('/'));
   };
-  
+
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger>
-        {locale === 'en' ? '🇬🇧 English' : '🇪🇹 አማርኛ'}
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="sm">
+          {locale === 'en' ? '🇬🇧 English' : '🇪🇹 አማርኛ'}
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent>
-        <DropdownMenuItem onClick={() => switchLanguage('en')}>
-          🇬🇧 English
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => switchLanguage('am')}>
-          🇪🇹 አማርኛ
-        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => switchLanguage('en')}>🇬🇧 English</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => switchLanguage('am')}>🇪🇹 አማርኛ</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -1135,64 +1213,69 @@ export function LanguageSwitcher() {
 
 ## 10. Development Roadmap
 
-### Phase 1: Foundation (Weeks 1-2)
-**Goal**: Set up project and core infrastructure
+### Phase 0: Landing & Public Pages (Week 1)
+**Goal**: Public-facing presence before auth
+
+- [ ] Landing page with hero, features, mahber types, how-it-works, CTA sections
+- [ ] About page
+- [ ] Public navbar with language switcher and login/register links
+- [ ] Responsive design for landing
+- [ ] SEO meta tags
+
+**Deliverables**: Public landing page live, users understand the product before signing up
+
+---
+
+### Phase 1: Foundation (Week 2)
+**Goal**: Core infrastructure and auth
 
 - [ ] Initialize Next.js 14 project with TypeScript
-- [ ] Install and configure Tailwind CSS
-- [ ] Set up shadcn/ui components
+- [ ] Install and configure Tailwind CSS + shadcn/ui
 - [ ] Configure ESLint, Prettier, Husky
 - [ ] Set up folder structure
-- [ ] Create API client with Axios
-- [ ] Implement authentication (login, register)
-- [ ] Set up Zustand stores
-- [ ] Configure next-intl for i18n
-- [ ] Create layout components (header, sidebar, footer)
+- [ ] Create API client with Axios (localStorage + cookie dual strategy)
+- [ ] Implement login and register pages
+- [ ] Set up Zustand auth store
+- [ ] Configure next-intl (App Router `[locale]` approach, no next.config i18n key)
+- [ ] Create dashboard layout (header, sidebar, footer)
+- [ ] Onboarding page for first-time users with zero mahbers
+- [ ] `loading.tsx` and `error.tsx` for root and key route segments
 
-**Deliverables**:
-- Working authentication flow
-- Basic layout with navigation
-- API client configured
-- i18n working (English/Amharic)
+**Deliverables**: Working auth flow, dashboard shell, i18n working
 
 ---
 
 ### Phase 2: Mahber Management (Weeks 3-4)
 **Goal**: Core mahber functionality
 
-- [ ] Mahber list page
+- [ ] Mahber list page with empty state
 - [ ] Create mahber page with configuration form
-- [ ] Join mahber page
-- [ ] Mahber details page (overview tab)
+- [ ] Join mahber page (search public mahbers + invitation code)
+- [ ] Mahber overview page
 - [ ] Members list page
 - [ ] Member details page
-- [ ] Join request management (admin)
-- [ ] Role assignment functionality
+- [ ] Join requests page (Admin)
+- [ ] Role assignment dialog
 
-**Deliverables**:
-- Users can create and join mahbers
-- Admins can manage members and roles
-- Complete membership workflow
+**Deliverables**: Full mahber create/join/manage workflow
 
 ---
 
 ### Phase 3: Financial Module (Weeks 5-6)
-**Goal**: Payment and financial tracking
+**Goal**: Payments and financial tracking
 
 - [ ] Payment initiation page
-- [ ] Chapa payment integration
+- [ ] Chapa checkout flow (open in new tab + poll for status)
+- [ ] Payment callback/return page (`/payments/callback`)
 - [ ] Payment list and details pages
 - [ ] Ledger page with transaction history
-- [ ] Balance tracking
-- [ ] Fines management
-- [ ] Financial reports (treasurer)
-- [ ] Payment status polling
-- [ ] Export functionality (CSV/PDF)
+- [ ] Balance card
+- [ ] Fines management page (with waive dialog for Treasurer)
+- [ ] Financial report page (Treasurer only)
+- [ ] Lottery history page (Equb groups)
+- [ ] Export to CSV/PDF
 
-**Deliverables**:
-- Complete payment flow with Chapa
-- Ledger and balance tracking
-- Financial reporting for treasurers
+**Deliverables**: Complete payment flow, ledger, fines, lottery history
 
 ---
 
@@ -1200,255 +1283,204 @@ export function LanguageSwitcher() {
 **Goal**: Event management and attendance
 
 - [ ] Events list page
-- [ ] Create/edit event page
+- [ ] Create/edit event form
 - [ ] Event details page
-- [ ] QR code generation
-- [ ] QR code scanning
-- [ ] Attendance tracking
-- [ ] Photo gallery
-- [ ] Photo upload functionality
-- [ ] Event notifications
+- [ ] QR code display page (renders backend data URL image)
+- [ ] QR scanner page (html5-qrcode → POST attendance)
+- [ ] Attendance list
+- [ ] Photo gallery with upload
 
-**Deliverables**:
-- Complete event lifecycle
-- QR-based attendance system
-- Photo gallery for events
+**Deliverables**: Full event lifecycle with QR attendance
 
 ---
 
 ### Phase 5: Communication (Weeks 9-10)
-**Goal**: Chat, announcements, and polls
+**Goal**: Chat, announcements, polls
 
-- [ ] Chat interface
-- [ ] WebSocket integration for real-time chat
-- [ ] Message editing and deletion
-- [ ] Announcements page
-- [ ] Create announcement (admin)
-- [ ] Polls page
-- [ ] Create poll (admin)
-- [ ] Vote on polls
-- [ ] Poll results visualization
+- [ ] Chat interface with WebSocket real-time updates
+- [ ] Message edit and delete
+- [ ] Announcements page (create requires Secretary/Admin)
+- [ ] Polls page with voting and results chart (create requires Secretary/Admin)
 
-**Deliverables**:
-- Real-time chat system
-- Announcement broadcasting
-- Voting/polling system
+**Deliverables**: Real-time chat, announcements, polls
 
 ---
 
 ### Phase 6: Admin Features (Weeks 11-12)
-**Goal**: Admin tools and audit
+**Goal**: Admin tools
 
-- [ ] Audit trail page
-- [ ] Advanced filtering and search
+- [ ] Audit trail page with filtering
 - [ ] Mahber settings page
 - [ ] Custom role creation
-- [ ] Bulk operations
-- [ ] Data export tools
-- [ ] Admin dashboard with analytics
+- [ ] Bulk member operations
+- [ ] Admin analytics dashboard
 
-**Deliverables**:
-- Complete admin toolset
-- Audit trail for compliance
-- Analytics dashboard
+**Deliverables**: Complete admin toolset
 
 ---
 
 ### Phase 7: Polish & Optimization (Weeks 13-14)
-**Goal**: UX improvements and performance
+**Goal**: UX and performance
 
-- [ ] Responsive design for mobile/tablet
-- [ ] Loading states and skeletons
-- [ ] Error boundaries
-- [ ] Empty states
-- [ ] Accessibility improvements (WCAG 2.1)
-- [ ] Performance optimization
-- [ ] SEO optimization
-- [ ] PWA features (offline support, install prompt)
-- [ ] Comprehensive testing
-
-**Deliverables**:
-- Fully responsive application
-- Excellent UX with proper feedback
-- Accessible to all users
-- Fast and optimized
+- [ ] `loading.tsx` skeletons per route segment
+- [ ] `error.tsx` error boundaries per route segment
+- [ ] Empty states for all list pages
+- [ ] Mobile/tablet responsive pass
+- [ ] PWA manifest, service worker, offline support (see Section 15)
+- [ ] Performance optimization (image optimization, lazy loading)
+- [ ] Accessibility review
 
 ---
 
 ### Phase 8: Testing & Deployment (Weeks 15-16)
-**Goal**: Production-ready application
+**Goal**: Production-ready
 
-- [ ] Unit tests for critical functions
+- [ ] Unit tests for utilities and hooks
 - [ ] Integration tests for API calls
-- [ ] E2E tests with Playwright
-- [ ] User acceptance testing
-- [ ] Bug fixes
-- [ ] Documentation
-- [ ] Deployment to Vercel/Netlify
+- [ ] E2E tests with Playwright (auth, payment flow, QR attendance)
+- [ ] Deployment to Vercel
 - [ ] CI/CD pipeline
-- [ ] Monitoring and analytics setup
-
-**Deliverables**:
-- Fully tested application
-- Deployed to production
-- Documentation complete
-- Monitoring in place
+- [ ] Monitoring setup (Sentry or similar)
 
 ---
 
 ## 11. Key Implementation Details
 
-### 11.1 Payment Flow with Chapa
+### 11.1 Landing Page Structure
 
 ```typescript
-// lib/api/payments.ts
-export async function initiatePayment(
-  mahberId: string,
-  data: InitiatePaymentDto
-): Promise<{ checkout_url: string; payment_id: string }> {
-  const response = await apiClient.post(
-    `/mahbers/${mahberId}/payments/initiate`,
-    data
+// app/(public)/page.tsx
+export default function LandingPage() {
+  return (
+    <>
+      <HeroSection />        {/* Headline, subtext, CTA buttons */}
+      <FeaturesSection />    {/* Key features: payments, events, chat, etc. */}
+      <MahberTypesSection /> {/* Explain Mahber vs Equb vs Iddir */}
+      <HowItWorksSection />  {/* 3-step: create/join → contribute → manage */}
+      <CTASection />         {/* Final call to register */}
+    </>
   );
-  return response.data;
 }
+```
 
-// app/mahbers/[id]/payments/initiate/page.tsx
-export default function InitiatePaymentPage() {
-  const router = useRouter();
-  const { mahberId } = useParams();
-  
-  const handleSubmit = async (data: InitiatePaymentDto) => {
-    try {
-      const { checkout_url, payment_id } = await initiatePayment(mahberId, data);
-      
-      // Open Chapa checkout in new window
-      const chapaWindow = window.open(checkout_url, '_blank');
-      
-      // Poll for payment status
-      const pollInterval = setInterval(async () => {
-        const payment = await getPaymentStatus(mahberId, payment_id);
-        
-        if (payment.status === 'Completed') {
-          clearInterval(pollInterval);
-          chapaWindow?.close();
-          toast.success('Payment successful!');
-          router.push(`/mahbers/${mahberId}/payments/${payment_id}`);
-        } else if (payment.status === 'Failed') {
-          clearInterval(pollInterval);
-          chapaWindow?.close();
-          toast.error('Payment failed. Please try again.');
-        }
-      }, 3000);
-      
-      // Stop polling after 10 minutes
-      setTimeout(() => clearInterval(pollInterval), 600000);
-    } catch (error) {
-      toast.error('Failed to initiate payment');
+### 11.2 Onboarding Flow
+
+After registration, if `GET /mahbers` returns an empty array, redirect to `/onboarding`. The onboarding page presents two clear paths: create a new mahber or join an existing one.
+
+```typescript
+// app/(dashboard)/mahbers/page.tsx
+const { data: mahbers } = useQuery({ queryKey: ['mahbers'], queryFn: mahberApi.list });
+
+useEffect(() => {
+  if (mahbers && mahbers.length === 0) {
+    router.replace('/onboarding');
+  }
+}, [mahbers]);
+```
+
+### 11.3 Payment Flow with Chapa
+
+The `InitiatePaymentDto` requires these fields — the payment form must collect them all:
+
+```typescript
+// Required by backend InitiatePaymentDto
+interface InitiatePaymentDto {
+  payment_type: 'Contribution' | 'JoinFee' | 'Fine';
+  amount: number;        // positive number
+  email: string;         // payer's email (required by Chapa)
+  first_name: string;    // payer's first name
+  last_name: string;     // payer's last name
+  callback_url?: string; // defaults to app.callbackUrl from backend config
+  return_url?: string;   // defaults to app.returnUrl from backend config
+}
+```
+
+The response returns `{ checkout_url, payment_id, tx_ref }`.
+
+```typescript
+// app/(dashboard)/mahbers/[id]/payments/initiate/page.tsx
+const handleSubmit = async (data: InitiatePaymentDto) => {
+  const { checkout_url, payment_id } = await paymentApi.initiate(mahberId, data);
+
+  // Open Chapa in a new tab
+  window.open(checkout_url, '_blank');
+
+  // Poll for status (Chapa also calls the backend webhook, but we poll as fallback)
+  const interval = setInterval(async () => {
+    const payment = await paymentApi.getOne(mahberId, payment_id);
+    if (payment.status === 'Completed') {
+      clearInterval(interval);
+      toast.success('Payment successful!');
+      router.push(`/mahbers/${mahberId}/payments/${payment_id}`);
+    } else if (payment.status === 'Failed') {
+      clearInterval(interval);
+      toast.error('Payment failed. Please try again.');
     }
-  };
-  
-  return <PaymentForm onSubmit={handleSubmit} />;
-}
+  }, 3000);
+
+  // Stop polling after 10 minutes
+  setTimeout(() => clearInterval(interval), 600_000);
+};
 ```
 
-### 11.2 QR Code Generation
+### 11.4 Payment Callback Page
+
+Chapa redirects back to the app after checkout. This page reads the `payment_id` from the query string and shows the final status.
 
 ```typescript
-// components/events/qr-generator.tsx
-import QRCode from 'qrcode.react';
+// app/(dashboard)/payments/callback/page.tsx
+// Chapa redirects to: /payments/callback?payment_id=xxx&mahber_id=yyy
+export default function PaymentCallbackPage() {
+  const searchParams = useSearchParams();
+  const paymentId = searchParams.get('payment_id');
+  const mahberId = searchParams.get('mahber_id');
 
-interface QRGeneratorProps {
-  qrToken: string;
-  eventTitle: string;
-  expiresAt: Date;
-}
+  const { data: payment, isLoading } = useQuery({
+    queryKey: ['payment', paymentId],
+    queryFn: () => paymentApi.getOne(mahberId!, paymentId!),
+    enabled: !!paymentId && !!mahberId,
+    refetchInterval: (data) => (data?.status === 'Pending' ? 3000 : false),
+  });
 
-export function QRGenerator({ qrToken, eventTitle, expiresAt }: QRGeneratorProps) {
-  const downloadQR = () => {
-    const canvas = document.getElementById('qr-code') as HTMLCanvasElement;
-    const url = canvas.toDataURL('image/png');
-    const link = document.createElement('a');
-    link.download = `${eventTitle}-qr.png`;
-    link.href = url;
-    link.click();
-  };
-  
+  if (isLoading) return <LoadingSpinner />;
+
   return (
-    <div className="flex flex-col items-center gap-4">
-      <QRCode
-        id="qr-code"
-        value={qrToken}
-        size={300}
-        level="H"
-        includeMargin
-      />
-      <div className="text-center">
-        <p className="font-semibold">{eventTitle}</p>
-        <p className="text-sm text-muted-foreground">
-          Expires: {format(expiresAt, 'PPpp')}
-        </p>
-        <CountdownTimer expiresAt={expiresAt} />
-      </div>
-      <div className="flex gap-2">
-        <Button onClick={downloadQR}>Download QR</Button>
-        <Button variant="outline" onClick={() => window.print()}>
-          Print QR
-        </Button>
-      </div>
+    <div className="flex flex-col items-center gap-4 py-16">
+      {payment?.status === 'Completed' && <SuccessState payment={payment} />}
+      {payment?.status === 'Failed' && <FailureState payment={payment} />}
+      {payment?.status === 'Pending' && <PendingState />}
     </div>
   );
 }
 ```
 
-### 11.3 QR Code Scanning
+### 11.5 QR Code Display (Corrected)
+
+The backend returns a pre-rendered PNG as a base64 data URL. No client-side QR generation needed.
 
 ```typescript
-// components/events/qr-scanner.tsx
-import { Html5QrcodeScanner } from 'html5-qrcode';
-import { useEffect, useRef } from 'react';
+// app/(dashboard)/mahbers/[id]/events/[eventId]/qr/page.tsx
+export default function QRPage() {
+  const { data } = useQuery({
+    queryKey: ['event-qr', eventId],
+    queryFn: () => attendanceApi.getQR(mahberId, eventId),
+    // Returns { qr_code: "data:image/png;base64,..." }
+  });
 
-interface QRScannerProps {
-  onScan: (qrToken: string) => void;
-  onError: (error: string) => void;
+  return <QRDisplay dataUrl={data.qr_code} eventTitle={event.title} expiresAt={event.end_time} />;
 }
+```
 
-export function QRScanner({ onScan, onError }: QRScannerProps) {
-  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
-  
-  useEffect(() => {
-    const scanner = new Html5QrcodeScanner(
-      'qr-reader',
-      { fps: 10, qrbox: 250 },
-      false
-    );
-    
-    scanner.render(
-      (decodedText) => {
-        onScan(decodedText);
-        scanner.clear();
-      },
-      (error) => {
-        console.error(error);
-      }
-    );
-    
-    scannerRef.current = scanner;
-    
-    return () => {
-      scanner.clear();
-    };
-  }, [onScan]);
-  
-  return (
-    <div className="flex flex-col items-center gap-4">
-      <div id="qr-reader" className="w-full max-w-md" />
-      <p className="text-sm text-muted-foreground">
-        Point your camera at the QR code to mark attendance
-      </p>
-    </div>
-  );
-}
+### 11.6 DELETE with Body (Notification Unregister)
+
+Some HTTP clients strip bodies from DELETE requests. Use `axios.delete` with the `data` option:
+
+```typescript
+// lib/api/notifications.ts
+export const notificationApi = {
+  unregisterDevice: (token: string) =>
+    apiClient.delete('/notifications/unregister-device', { data: { token } }),
+};
 ```
 
 ---
@@ -1474,13 +1506,8 @@ NEXT_PUBLIC_APP_URL=http://localhost:3001
 ### 13.1 Vercel Deployment
 
 ```bash
-# Install Vercel CLI
-npm i -g vercel
-
-# Login
+pnpm i -g vercel
 vercel login
-
-# Deploy
 vercel --prod
 ```
 
@@ -1488,17 +1515,14 @@ vercel --prod
 
 ```javascript
 // next.config.js
+// Note: No 'i18n' key here — that is Pages Router only.
+// next-intl uses the app/[locale]/ folder approach with App Router.
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    domains: ['api.mahberconnect.com'],
-  },
-  i18n: {
-    locales: ['en', 'am'],
-    defaultLocale: 'en',
-  },
-  env: {
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+    remotePatterns: [
+      { protocol: 'https', hostname: 'api.mahberconnect.com' },
+    ],
   },
 };
 
@@ -1507,24 +1531,362 @@ module.exports = nextConfig;
 
 ---
 
-## 14. Summary
+## 14. PWA & Mobile Support
 
-This comprehensive plan provides everything needed to build the MahberConnect web application:
+MahberConnect is a daily-use app for community members who will primarily access it on mobile phones. PWA support makes it installable, fast on repeat visits, and functional with poor connectivity — without needing an app store.
 
-✅ **Complete technology stack** - Next.js 14, TypeScript, Tailwind, shadcn/ui
-✅ **Detailed project structure** - Every folder and file mapped out
-✅ **All 40+ pages documented** - Routes, APIs, components, features
-✅ **API integration guide** - Every endpoint with examples
-✅ **Component library** - Reusable components for all features
-✅ **State management** - Zustand stores and React Query setup
-✅ **Real-time features** - WebSocket integration for chat and notifications
-✅ **Internationalization** - Amharic and English support
-✅ **16-week development roadmap** - Phased approach with clear deliverables
-✅ **Implementation examples** - Code snippets for complex features
-✅ **Deployment guide** - Production-ready configuration
+### 15.1 Dependencies
 
-**Estimated Timeline**: 16 weeks (4 months)
+```bash
+pnpm add next-pwa
+pnpm add -D @types/serviceworker
+```
+
+`next-pwa` wraps Workbox and integrates cleanly with Next.js App Router.
+
+### 15.2 next.config.js
+
+```javascript
+// next.config.js
+const withPWA = require('next-pwa')({
+  dest: 'public',
+  register: true,
+  skipWaiting: true,
+  disable: process.env.NODE_ENV === 'development', // avoid SW noise in dev
+  fallbacks: {
+    document: '/offline', // served when a page is requested offline
+  },
+});
+
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  images: {
+    remotePatterns: [
+      { protocol: 'https', hostname: 'api.mahberconnect.com' },
+    ],
+  },
+};
+
+module.exports = withPWA(nextConfig);
+```
+
+### 15.3 Web App Manifest
+
+```json
+// public/manifest.json
+{
+  "name": "MahberConnect",
+  "short_name": "Mahber",
+  "description": "Manage your Mahber, Equb, and Iddir community groups",
+  "start_url": "/mahbers",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#1a6b3c",
+  "lang": "en",
+  "icons": [
+    { "src": "/icons/icon-72x72.png",   "sizes": "72x72",   "type": "image/png" },
+    { "src": "/icons/icon-96x96.png",   "sizes": "96x96",   "type": "image/png" },
+    { "src": "/icons/icon-128x128.png", "sizes": "128x128", "type": "image/png" },
+    { "src": "/icons/icon-144x144.png", "sizes": "144x144", "type": "image/png" },
+    { "src": "/icons/icon-152x152.png", "sizes": "152x152", "type": "image/png" },
+    { "src": "/icons/icon-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/icon-384x384.png", "sizes": "384x384", "type": "image/png" },
+    { "src": "/icons/icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/dashboard.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Dashboard"
+    }
+  ],
+  "categories": ["finance", "social", "utilities"]
+}
+```
+
+Link it in the root layout:
+
+```typescript
+// app/layout.tsx
+export const metadata: Metadata = {
+  manifest: '/manifest.json',
+  themeColor: '#1a6b3c',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'MahberConnect',
+  },
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 1, // prevents unwanted zoom on input focus on iOS
+    viewportFit: 'cover', // respects iPhone notch/safe areas
+  },
+};
+```
+
+### 15.4 Offline Fallback Page
+
+```typescript
+// app/offline/page.tsx
+export default function OfflinePage() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen gap-4 p-6 text-center">
+      <WifiOff className="w-16 h-16 text-muted-foreground" />
+      <h1 className="text-2xl font-semibold">You're offline</h1>
+      <p className="text-muted-foreground max-w-sm">
+        Check your connection and try again. Pages you've visited recently may still be available.
+      </p>
+      <Button onClick={() => window.location.reload()}>Try Again</Button>
+    </div>
+  );
+}
+```
+
+### 15.5 Caching Strategy
+
+Workbox (via next-pwa) handles this automatically, but the strategy per resource type:
+
+| Resource | Strategy | Rationale |
+|----------|----------|-----------|
+| Next.js static assets (`/_next/static`) | Cache First | Immutable, versioned filenames |
+| Pages (HTML) | Network First | Always try fresh, fall back to cache |
+| API responses | Network Only | Financial/membership data must be live |
+| Images (`/icons`, `/images`) | Cache First | Rarely change |
+| Google Fonts / CDN | Stale While Revalidate | Fast load, background refresh |
+
+For API responses, do **not** cache — stale payment or membership data would be misleading. The offline page handles the case where a user tries to navigate to a new page without connectivity.
+
+### 15.6 Install Prompt (Add to Home Screen)
+
+```typescript
+// components/common/install-prompt.tsx
+'use client';
+import { useEffect, useState } from 'react';
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
+
+export function InstallPrompt() {
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
+      setShow(true);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (!deferredPrompt) return;
+    await deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') setShow(false);
+    setDeferredPrompt(null);
+  };
+
+  if (!show) return null;
+
+  return (
+    <div className="fixed bottom-4 left-4 right-4 z-50 md:left-auto md:right-4 md:w-80">
+      <Card className="p-4 shadow-lg">
+        <div className="flex items-start gap-3">
+          <img src="/icons/icon-72x72.png" alt="" className="w-10 h-10 rounded-lg" />
+          <div className="flex-1">
+            <p className="font-semibold text-sm">Install MahberConnect</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Add to your home screen for quick access
+            </p>
+          </div>
+          <Button variant="ghost" size="icon" onClick={() => setShow(false)}>
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+        <div className="flex gap-2 mt-3">
+          <Button size="sm" className="flex-1" onClick={handleInstall}>Install</Button>
+          <Button size="sm" variant="outline" className="flex-1" onClick={() => setShow(false)}>
+            Not now
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+```
+
+Mount it in the dashboard layout so it only appears to authenticated users:
+
+```typescript
+// app/(dashboard)/layout.tsx
+import { InstallPrompt } from '@/components/common/install-prompt';
+
+export default function DashboardLayout({ children }) {
+  return (
+    <>
+      <Sidebar />
+      <main>{children}</main>
+      <InstallPrompt />
+    </>
+  );
+}
+```
+
+### 15.7 Push Notifications (Web Push via FCM)
+
+The backend already has `POST /notifications/register-device` and `DELETE /notifications/unregister-device`. The frontend needs to request permission and register the FCM web token.
+
+```typescript
+// lib/hooks/use-push-notifications.ts
+import { getMessaging, getToken, onMessage } from 'firebase/messaging';
+import { notificationApi } from '@/lib/api/notifications';
+
+const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY!;
+
+export function usePushNotifications() {
+  const { addNotification } = useNotificationStore();
+
+  const requestPermission = async () => {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') return;
+
+    const messaging = getMessaging();
+    const token = await getToken(messaging, { vapidKey: VAPID_KEY });
+
+    // Register with backend — platform 'web'
+    await notificationApi.registerDevice(token, 'web');
+
+    // Handle foreground messages
+    onMessage(messaging, (payload) => {
+      addNotification({
+        id: payload.messageId ?? Date.now().toString(),
+        title: payload.notification?.title ?? '',
+        body: payload.notification?.body ?? '',
+      });
+      toast.info(payload.notification?.title ?? '', {
+        description: payload.notification?.body,
+      });
+    });
+  };
+
+  return { requestPermission };
+}
+```
+
+Trigger permission request after login, not on page load — browsers block prompts that fire immediately:
+
+```typescript
+// After successful login in auth-store.ts
+login: async (phone, password) => {
+  // ... existing login logic ...
+
+  // Defer push permission — ask after user is settled in the app
+  setTimeout(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      // Show an in-app prompt first, then call requestPermission on user action
+      useUIStore.getState().setShowNotificationPrompt(true);
+    }
+  }, 5000);
+},
+```
+
+Add a `firebase-messaging-sw.js` to `public/` for background message handling:
+
+```javascript
+// public/firebase-messaging-sw.js
+importScripts('https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.0.0/firebase-messaging-compat.js');
+
+firebase.initializeApp({
+  apiKey: self.FIREBASE_API_KEY,
+  projectId: self.FIREBASE_PROJECT_ID,
+  messagingSenderId: self.FIREBASE_MESSAGING_SENDER_ID,
+  appId: self.FIREBASE_APP_ID,
+});
+
+const messaging = firebase.messaging();
+
+messaging.onBackgroundMessage((payload) => {
+  self.registration.showNotification(payload.notification.title, {
+    body: payload.notification.body,
+    icon: '/icons/icon-192x192.png',
+    badge: '/icons/icon-72x72.png',
+  });
+});
+```
+
+### 15.8 Mobile UX Considerations
+
+- Use `safe-area-inset` padding on the bottom nav for iPhone notch/home indicator:
+  ```css
+  /* globals.css */
+  .bottom-nav {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  ```
+- Minimum touch target size: 44×44px for all interactive elements
+- Sidebar collapses to a bottom navigation bar on mobile (`useMediaQuery('(max-width: 768px)')`)
+- Disable `maximumScale: 1` in viewport to prevent iOS zoom on input focus
+- Chat input stays above the keyboard using `position: sticky; bottom: 0` with `env(safe-area-inset-bottom)`
+
+### 15.9 Additional Environment Variables for PWA
+
+```bash
+# .env.local
+NEXT_PUBLIC_FIREBASE_API_KEY=your_key
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+NEXT_PUBLIC_FIREBASE_VAPID_KEY=your_vapid_key
+```
+
+---
+
+## 15. Summary
+
+**Estimated Timeline**: 16 weeks (8 phases)
 **Team Size**: 2-3 developers
-**Complexity**: Medium-High
 
-The web application will be fully responsive, accessible, and production-ready with all features from the backend API integrated seamlessly.
+Key corrections applied from the original plan:
+- Role names are PascalCase (`Admin`, `Treasurer`, `Secretary`, `Member`) matching the backend
+- QR endpoint returns a base64 PNG data URL — rendered as `<img>`, not via qrcode.react
+- Announcement and poll creation requires `SEND_ANNOUNCEMENTS` permission (Secretary or Admin, not Admin-only)
+- Audit trail requires `MANAGE_MEMBERS` permission (Admin only)
+- React Query v5 uses `gcTime` not `cacheTime`
+- Auth token uses dual storage (localStorage for API client + cookie for middleware)
+- `next.config.js` has no `i18n` key — App Router uses `[locale]` folder with next-intl
+- `DELETE /notifications/unregister-device` sends body via `{ data: dto }`
+- `InitiatePaymentDto` requires `email`, `first_name`, `last_name` — payment form must collect these
+- Lottery page now uses `GET /mahbers/:id/lottery/history` (dedicated endpoint, not audit trail)
+
+New additions to the plan:
+- Public landing page and about page
+- Onboarding flow for new users with zero mahbers
+- Payment callback/return page for Chapa redirects
+- Lottery history + execute draw page for Equb groups
+- `loading.tsx` and `error.tsx` per route segment
+- `join-requests` page in folder structure
+- `GET /mahbers/public` for mahber discovery on the join page
+- `GET /mahbers/:id/statistics` for the mahber overview dashboard
+- `POST /mahbers/:id/events/:eventId/process-attendance` for triggering absence fine processing
+- Full PWA section (Section 14): manifest, service worker, offline page, install prompt, FCM web push, mobile UX
+
+Backend additions made during audit:
+- `GET /mahbers/public` — search public mahbers by name
+- `GET /mahbers/:id/statistics` — member count, active members, upcoming events, payment count
+- `GET /mahbers/:id/lottery/history` — past lottery draws
+- `POST /mahbers/:id/lottery/execute` — manual lottery trigger (Treasurer/Admin)
+- `POST /mahbers/:id/events/:eventId/process-attendance` — queue attendance processing job
+
+Remaining known gaps (not blocking, lower priority):
+- No WebSocket gateway on the backend — chat is REST-only polling for now; real-time requires adding `@WebSocketGateway` to the backend
+- Photo storage is local disk (`./uploads/`) — production deployment needs a volume mount or migration to S3/object storage
+- No scheduled announcement publishing — `scheduled_at` field exists in the DB but no background job publishes it
