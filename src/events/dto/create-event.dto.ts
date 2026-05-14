@@ -33,4 +33,8 @@ export class CreateEventDto {
   @IsBoolean()
   @IsOptional()
   is_mandatory?: boolean;
+
+  @IsString()
+  @IsOptional()
+  host_id?: string;
 }

@@ -5,6 +5,8 @@ import { Queue } from 'bull';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RoleGuard } from '../membership/guards/role.guard';
+import { EventAccessGuard } from './guards/event-access.guard';
+import { AllowEventHost } from './decorators/allow-event-host.decorator';
 import { RequirePermission } from '../membership/decorators/require-permission.decorator';
 import { PERMISSIONS } from '../membership/rbac/permissions';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -24,7 +26,7 @@ class RecordAttendanceDto {
 
 @ApiTags('Events - Attendance')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RoleGuard)
+@UseGuards(JwtAuthGuard)
 @Controller('mahbers/:id/events/:eventId')
 export class AttendanceController {
   private readonly logger = new Logger(AttendanceController.name);
@@ -39,7 +41,9 @@ export class AttendanceController {
   ) {}
 
   @Get('qr')
+  @UseGuards(EventAccessGuard)
   @RequirePermission(PERMISSIONS.CREATE_EVENTS)
+  @AllowEventHost()
   @ApiOperation({ summary: 'Generate QR code for event attendance' })
   @ApiParam({ name: 'id', description: 'Mahber ID' })
   @ApiParam({ name: 'eventId', description: 'Event ID' })
@@ -63,12 +67,9 @@ export class AttendanceController {
     @Query('page') page = '1',
     @Query('limit') limit = '20',
   ) {
-    // Ensure numeric pagination
     const pageNum = Math.max(1, parseInt(page as any, 10) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit as any, 10) || 20));
 
-    // Use the existing service to fetch records and paginate in-memory.
-    // This keeps the service API unchanged while providing the endpoint the frontend expects.
     const all = await this.attendanceService.getAttendance(mahberId, eventId);
     const total = all.length;
     const start = (pageNum - 1) * limitNum;
@@ -94,7 +95,6 @@ export class AttendanceController {
     @CurrentUser() user: JwtPayload,
     @Body() dto: RecordAttendanceDto,
   ) {
-    // Log authenticated user for debugging auth vs QR validation failures
     this.logger.log(
       `Authenticated user for attendance: sub=${user?.sub} phone=${user?.phone} role=${user?.role}`,
     );
@@ -110,7 +110,6 @@ export class AttendanceController {
         dto.qr_token,
       );
     } catch (err) {
-      // Surface the failure in logs for easier debugging
       this.logger.warn(
         `recordAttendance failed for user=${user?.sub} event=${eventId}: ${(err as any)?.message ?? err}`,
       );
@@ -119,6 +118,7 @@ export class AttendanceController {
   }
 
   @Post('process-attendance')
+  @UseGuards(RoleGuard)
   @RequirePermission(PERMISSIONS.CREATE_EVENTS)
   @ApiOperation({
     summary: 'Trigger attendance processing for a past event (applies absence fines)',
@@ -133,7 +133,9 @@ export class AttendanceController {
   }
 
   @Get('attendance/analytics')
+  @UseGuards(EventAccessGuard)
   @RequirePermission(PERMISSIONS.CREATE_EVENTS)
+  @AllowEventHost()
   @ApiOperation({ summary: 'Get attendance analytics for an event' })
   @ApiParam({ name: 'id', description: 'Mahber ID' })
   @ApiParam({ name: 'eventId', description: 'Event ID' })
@@ -143,7 +145,9 @@ export class AttendanceController {
   }
 
   @Get('attendance/trends')
+  @UseGuards(EventAccessGuard)
   @RequirePermission(PERMISSIONS.CREATE_EVENTS)
+  @AllowEventHost()
   @ApiOperation({ summary: 'Get attendance trends over months' })
   @ApiParam({ name: 'id', description: 'Mahber ID' })
   @ApiQuery({ name: 'months', required: false, description: 'Number of months to look back (default 6)' })
@@ -157,7 +161,9 @@ export class AttendanceController {
   }
 
   @Get('attendance/report')
+  @UseGuards(EventAccessGuard)
   @RequirePermission(PERMISSIONS.CREATE_EVENTS)
+  @AllowEventHost()
   @ApiOperation({ summary: 'Export attendance report as PDF' })
   @ApiParam({ name: 'id', description: 'Mahber ID' })
   @ApiQuery({ name: 'startDate', required: false })

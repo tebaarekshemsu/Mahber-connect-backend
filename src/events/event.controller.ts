@@ -20,6 +20,8 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RoleGuard } from '../membership/guards/role.guard';
+import { EventAccessGuard } from './guards/event-access.guard';
+import { AllowEventHost } from './decorators/allow-event-host.decorator';
 import { RequirePermission } from '../membership/decorators/require-permission.decorator';
 import { PERMISSIONS } from '../membership/rbac/permissions';
 import { JwtService } from '@nestjs/jwt';
@@ -35,10 +37,11 @@ import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { SendInvitationsDto } from './dto/send-invitations.dto';
 import { RespondInvitationDto } from './dto/respond-invitation.dto';
+import { AssignEventHostDto } from './dto/assign-event-host.dto';
 
 @ApiTags('Events')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RoleGuard)
+@UseGuards(JwtAuthGuard)
 @Controller('mahbers/:id/events')
 export class EventController {
   constructor(
@@ -50,6 +53,7 @@ export class EventController {
   ) {}
 
   @Post()
+  @UseGuards(RoleGuard)
   @RequirePermission(PERMISSIONS.CREATE_EVENTS)
   @ApiOperation({ summary: 'Create a new event' })
   @ApiParam({ name: 'id', description: 'Mahber ID' })
@@ -124,6 +128,7 @@ export class EventController {
   }
 
   @Put(':eventId')
+  @UseGuards(RoleGuard)
   @RequirePermission(PERMISSIONS.CREATE_EVENTS)
   @ApiOperation({ summary: 'Update an event' })
   @ApiParam({ name: 'id', description: 'Mahber ID' })
@@ -141,6 +146,7 @@ export class EventController {
   }
 
   @Delete(':eventId')
+  @UseGuards(RoleGuard)
   @RequirePermission(PERMISSIONS.CREATE_EVENTS)
   @ApiOperation({ summary: 'Cancel an event' })
   @ApiParam({ name: 'id', description: 'Mahber ID' })
@@ -156,8 +162,47 @@ export class EventController {
     return this.eventService.cancel(mahberId, eventId, user.sub);
   }
 
-  @Post(':eventId/invitations')
+  // ── Host Endpoints ────────────────────────────────────────────────────────
+
+  @Put(':eventId/host')
+  @UseGuards(RoleGuard)
   @RequirePermission(PERMISSIONS.CREATE_EVENTS)
+  @ApiOperation({ summary: 'Assign a host to an event' })
+  @ApiParam({ name: 'id', description: 'Mahber ID' })
+  @ApiParam({ name: 'eventId', description: 'Event ID' })
+  @ApiResponse({ status: 200, description: 'Host assigned successfully' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
+  assignHost(
+    @Param('id') mahberId: string,
+    @Param('eventId') eventId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: AssignEventHostDto,
+  ) {
+    return this.eventService.assignHost(mahberId, eventId, user.sub, dto.member_id);
+  }
+
+  @Delete(':eventId/host')
+  @UseGuards(RoleGuard)
+  @RequirePermission(PERMISSIONS.CREATE_EVENTS)
+  @ApiOperation({ summary: 'Remove host from an event' })
+  @ApiParam({ name: 'id', description: 'Mahber ID' })
+  @ApiParam({ name: 'eventId', description: 'Event ID' })
+  @ApiResponse({ status: 200, description: 'Host removed successfully' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
+  removeHost(
+    @Param('id') mahberId: string,
+    @Param('eventId') eventId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.eventService.removeHost(mahberId, eventId, user.sub);
+  }
+
+  // ── Invitations (accessible by admin OR event host) ─────────────────────
+
+  @Post(':eventId/invitations')
+  @UseGuards(EventAccessGuard)
+  @RequirePermission(PERMISSIONS.CREATE_EVENTS)
+  @AllowEventHost()
   @ApiOperation({ summary: 'Send event invitations to specific members' })
   @ApiParam({ name: 'id', description: 'Mahber ID' })
   @ApiParam({ name: 'eventId', description: 'Event ID' })
@@ -173,7 +218,9 @@ export class EventController {
   }
 
   @Get(':eventId/invitations')
+  @UseGuards(EventAccessGuard)
   @RequirePermission(PERMISSIONS.CREATE_EVENTS)
+  @AllowEventHost()
   @ApiOperation({ summary: 'Get all invitations for an event' })
   @ApiParam({ name: 'id', description: 'Mahber ID' })
   @ApiParam({ name: 'eventId', description: 'Event ID' })
@@ -181,6 +228,8 @@ export class EventController {
   getInvitations(@Param('id') mahberId: string, @Param('eventId') eventId: string) {
     return this.eventService.getInvitationsForEvent(mahberId, eventId);
   }
+
+  // ── Registration / RSVP ─────────────────────────────────────────────────
 
   @Put(':eventId/invitations/:invId/respond')
   @ApiOperation({ summary: 'Respond to an event invitation (accept/decline)' })
@@ -230,7 +279,9 @@ export class EventController {
   }
 
   @Get(':eventId/registrations')
+  @UseGuards(EventAccessGuard)
   @RequirePermission(PERMISSIONS.CREATE_EVENTS)
+  @AllowEventHost()
   @ApiOperation({ summary: 'Get registration summary for an event' })
   @ApiParam({ name: 'id', description: 'Mahber ID' })
   @ApiParam({ name: 'eventId', description: 'Event ID' })

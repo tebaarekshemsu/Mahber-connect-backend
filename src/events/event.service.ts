@@ -25,6 +25,19 @@ export class EventService {
   ) {}
 
   async create(mahberId: string, actorId: string, dto: CreateEventDto) {
+    if (dto.host_id) {
+      const hostMembership = await this.prisma.membership.findFirst({
+        where: {
+          mahber_id: mahberId,
+          member_id: dto.host_id,
+          status: 'Active',
+        },
+      });
+      if (!hostMembership) {
+        throw new BadRequestException('Specified host is not an active member');
+      }
+    }
+
     const event = await this.prisma.event.create({
       data: {
         mahber_id: mahberId,
@@ -35,6 +48,8 @@ export class EventService {
         end_time: new Date(dto.end_time),
         location: dto.location,
         is_mandatory: dto.is_mandatory ?? false,
+        created_by: actorId,
+        host_id: dto.host_id ?? null,
       },
     });
 
@@ -46,6 +61,15 @@ export class EventService {
       NotificationType.event,
       `/mahbers/${mahberId}/events`
     );
+
+    await this.audit.logAuditEvent({
+      mahber_id: mahberId,
+      entity_type: 'event',
+      entity_id: event.id,
+      action: 'event_created',
+      actor_id: actorId,
+      new_value: { title: event.title, host_id: dto.host_id ?? null },
+    });
 
     return event;
   }
@@ -77,6 +101,11 @@ export class EventService {
   async findOne(mahberId: string, eventId: string) {
     const event = await this.prisma.event.findFirst({
       where: { id: eventId, mahber_id: mahberId },
+      include: {
+        host_user: {
+          select: { id: true, name: true, phone: true },
+        },
+      },
     });
 
     if (!event) {
@@ -146,6 +175,74 @@ export class EventService {
     );
 
     return cancelled;
+  }
+
+  async assignHost(mahberId: string, eventId: string, actorId: string, memberId: string) {
+    const event = await this.findOne(mahberId, eventId);
+
+    if (event.is_cancelled) {
+      throw new BadRequestException('Cannot assign host to a cancelled event');
+    }
+
+    const hostMembership = await this.prisma.membership.findFirst({
+      where: {
+        mahber_id: mahberId,
+        member_id: memberId,
+        status: 'Active',
+      },
+    });
+    if (!hostMembership) {
+      throw new BadRequestException('Specified member is not an active member');
+    }
+
+    const updated = await this.prisma.event.update({
+      where: { id: eventId },
+      data: { host_id: memberId },
+      include: {
+        host_user: {
+          select: { id: true, name: true, phone: true },
+        },
+      },
+    });
+
+    await this.audit.logAuditEvent({
+      mahber_id: mahberId,
+      entity_type: 'event',
+      entity_id: eventId,
+      action: 'host_assigned',
+      actor_id: actorId,
+      old_value: { host_id: event.host_id },
+      new_value: { host_id: memberId },
+    });
+
+    this.logger.log(`Host ${memberId} assigned to event ${eventId} in mahber ${mahberId}`);
+    return updated;
+  }
+
+  async removeHost(mahberId: string, eventId: string, actorId: string) {
+    const event = await this.findOne(mahberId, eventId);
+
+    if (!event.host_id) {
+      throw new BadRequestException('Event has no host to remove');
+    }
+
+    const updated = await this.prisma.event.update({
+      where: { id: eventId },
+      data: { host_id: null },
+    });
+
+    await this.audit.logAuditEvent({
+      mahber_id: mahberId,
+      entity_type: 'event',
+      entity_id: eventId,
+      action: 'host_removed',
+      actor_id: actorId,
+      old_value: { host_id: event.host_id },
+      new_value: { host_id: null },
+    });
+
+    this.logger.log(`Host removed from event ${eventId} in mahber ${mahberId}`);
+    return updated;
   }
 
   async sendInvitations(

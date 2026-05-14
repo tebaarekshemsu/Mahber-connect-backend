@@ -31,6 +31,8 @@ model User {
   event_invitations EventInvitation[]
   password_reset_tokens PasswordResetToken[]
   payouts Payout[]
+  events_created Event[] @relation("EventCreatedBy")
+  events_hosted  Event[] @relation("EventHost")
 
   @@map("users")
 }
@@ -301,9 +303,14 @@ model Event {
   location     String
   is_mandatory Boolean   @default(false)
   is_cancelled Boolean   @default(false)
+  created_by   String?
+  host_id      String?
   created_at   DateTime  @default(now())
 
   invitations EventInvitation[]
+
+  created_by_user User?  @relation("EventCreatedBy", fields: [created_by], references: [id])
+  host_user       User?  @relation("EventHost",       fields: [host_id],   references: [id])
 
   @@index([mahber_id, start_time])
   @@map("events")
