@@ -17,6 +17,7 @@ import { EventService } from './event.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { QUEUE_NAMES } from '../automation/interfaces/job-types';
 import { IsString, IsNotEmpty } from 'class-validator';
+import { ManualCheckInDto } from './dto/manual-checkin.dto';
 
 class RecordAttendanceDto {
   @IsString()
@@ -75,11 +76,15 @@ export class AttendanceController {
     const start = (pageNum - 1) * limitNum;
     const data = all.slice(start, start + limitNum);
 
+    const totalPages = Math.ceil(total / limitNum) || 1;
     return {
-      total,
-      page: pageNum,
-      limit: limitNum,
       data,
+      meta: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages,
+      },
     };
   }
 
@@ -115,6 +120,24 @@ export class AttendanceController {
       );
       throw err;
     }
+  }
+
+  @Post('attendance/manual')
+  @UseGuards(EventAccessGuard)
+  @RequirePermission(PERMISSIONS.CREATE_EVENTS)
+  @AllowEventHost()
+  @ApiOperation({ summary: 'Manually check in a member (admin/event host fallback)' })
+  @ApiParam({ name: 'id', description: 'Mahber ID' })
+  @ApiParam({ name: 'eventId', description: 'Event ID' })
+  @ApiResponse({ status: 201, description: 'Member checked in successfully' })
+  @ApiResponse({ status: 409, description: 'Attendance already recorded' })
+  async manualCheckIn(
+    @Param('id') mahberId: string,
+    @Param('eventId') eventId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: ManualCheckInDto,
+  ) {
+    return this.attendanceService.manualCheckIn(mahberId, eventId, dto.member_id, user.sub);
   }
 
   @Post('process-attendance')

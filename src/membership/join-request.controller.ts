@@ -1,11 +1,12 @@
 import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { JoinRequestService } from './join-request.service';
 import { CreateJoinRequestDto } from './dto/create-join-request.dto';
 import { ProcessJoinRequestDto } from './dto/process-join-request.dto';
+import { BatchProcessJoinRequestDto } from './dto/batch-process-join-request.dto';
 
 @ApiTags('Membership')
 @ApiBearerAuth()
@@ -35,6 +36,17 @@ export class JoinRequestController {
     @Body() dto: { phone: string },
   ) {
     return this.joinRequestService.invite(mahberId, user.sub, dto.phone);
+  }
+
+  @Post('batch')
+  @ApiOperation({ summary: 'Approve or reject multiple join requests at once' })
+  @ApiResponse({ status: 201, description: 'Batch processing completed' })
+  batchProcess(
+    @Param('id') mahberId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: BatchProcessJoinRequestDto,
+  ) {
+    return this.joinRequestService.batchProcess(mahberId, user.sub, dto);
   }
 
   @Put(':requestId')

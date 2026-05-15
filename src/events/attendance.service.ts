@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -98,6 +99,59 @@ export class AttendanceService {
     return attendance;
   }
 
+  async manualCheckIn(mahberId: string, eventId: string, memberId: string, actorId: string) {
+    this.logger.log(
+      `manualCheckIn: event=${eventId} mahber=${mahberId} targetMember=${memberId} actor=${actorId}`,
+    );
+
+    const event = await this.prisma.event.findFirst({
+      where: { id: eventId, mahber_id: mahberId },
+    });
+
+    if (!event) {
+      throw new NotFoundException(`Event ${eventId} not found`);
+    }
+
+    if (event.is_cancelled) {
+      throw new BadRequestException('Cannot check in to a cancelled event');
+    }
+
+    const membership = await this.prisma.membership.findFirst({
+      where: {
+        member_id: memberId,
+        mahber_id: mahberId,
+        status: MembershipStatus.Active,
+      },
+      include: { user: { select: { id: true, name: true, phone: true } } },
+    });
+
+    if (!membership) {
+      throw new ForbiddenException('Member is not active in this mahber');
+    }
+
+    const existing = await this.prisma.attendance.findUnique({
+      where: { event_id_member_id: { event_id: eventId, member_id: memberId } },
+    });
+
+    if (existing) {
+      throw new ConflictException('Attendance already recorded for this member');
+    }
+
+    const attendance = await this.prisma.attendance.create({
+      data: {
+        event_id: eventId,
+        member_id: memberId,
+        mahber_id: mahberId,
+      },
+    });
+
+    this.logger.log(
+      `Manual check-in recorded: event=${eventId} member=${memberId} mahber=${mahberId} actor=${actorId}`,
+    );
+
+    return { ...attendance, user: membership.user };
+  }
+
   /**
    * Get all attendance records for an event.
    */
@@ -110,10 +164,27 @@ export class AttendanceService {
       throw new NotFoundException(`Event ${eventId} not found`);
     }
 
-    return this.prisma.attendance.findMany({
+    const records = await this.prisma.attendance.findMany({
       where: { event_id: eventId, mahber_id: mahberId },
       orderBy: { checked_in_at: 'asc' },
     });
+
+    if (records.length === 0) return records;
+
+    const memberIds = records.map((r) => r.member_id);
+    const memberships = await this.prisma.membership.findMany({
+      where: { member_id: { in: memberIds }, mahber_id: mahberId },
+      include: { user: { select: { id: true, name: true, phone: true } } },
+    });
+
+    const userByMemberId = new Map(
+      memberships.map((m) => [m.member_id, m.user]),
+    );
+
+    return records.map((r) => ({
+      ...r,
+      user: userByMemberId.get(r.member_id),
+    }));
   }
 
   /**

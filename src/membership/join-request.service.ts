@@ -9,6 +9,7 @@ import { JoinRequestStatus, MembershipStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateJoinRequestDto } from './dto/create-join-request.dto';
 import { ProcessJoinRequestDto } from './dto/process-join-request.dto';
+import { BatchProcessJoinRequestDto } from './dto/batch-process-join-request.dto';
 
 @Injectable()
 export class JoinRequestService {
@@ -110,6 +111,70 @@ export class JoinRequestService {
     ]);
 
     return updatedRequest;
+  }
+
+  async batchProcess(mahberId: string, actorId: string, dto: BatchProcessJoinRequestDto) {
+    await this.assertAdmin(mahberId, actorId);
+
+    const requestIds = dto.requests.map((r) => r.requestId);
+    const existingRequests = await this.prisma.joinRequest.findMany({
+      where: { id: { in: requestIds }, mahber_id: mahberId },
+    });
+
+    const requestMap = new Map(existingRequests.map((r) => [r.id, r]));
+
+    const results: { approved: number; rejected: number; failed: Array<{ requestId: string; reason: string }> } = {
+      approved: 0,
+      rejected: 0,
+      failed: [],
+    };
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const item of dto.requests) {
+        const request = requestMap.get(item.requestId);
+
+        if (!request) {
+          results.failed.push({ requestId: item.requestId, reason: 'Join request not found' });
+          continue;
+        }
+
+        if (request.status !== JoinRequestStatus.Pending) {
+          results.failed.push({
+            requestId: item.requestId,
+            reason: `Only pending join requests can be processed (current: ${request.status})`,
+          });
+          continue;
+        }
+
+        if (item.action === 'reject') {
+          await tx.joinRequest.update({
+            where: { id: item.requestId },
+            data: {
+              status: JoinRequestStatus.Rejected,
+              rejection_reason: item.rejection_reason,
+            },
+          });
+          results.rejected++;
+        } else {
+          await tx.joinRequest.update({
+            where: { id: item.requestId },
+            data: { status: JoinRequestStatus.Approved },
+          });
+          await tx.membership.create({
+            data: {
+              mahber_id: mahberId,
+              member_id: request.user_id,
+              status: MembershipStatus.Payment_Required,
+              role: { name: 'Member', permissions: [] },
+              approval_date: new Date(),
+            },
+          });
+          results.approved++;
+        }
+      }
+    });
+
+    return results;
   }
 
   async invite(mahberId: string, adminId: string, phone: string) {
