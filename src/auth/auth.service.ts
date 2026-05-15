@@ -92,8 +92,15 @@ export class AuthService {
       throw new NotFoundException('User not found');
     }
 
-    const { password: _password, ...result } = user;
-    return result;
+    return {
+      id: user.id,
+      phone: user.phone,
+      name: user.name,
+      email: user.email,
+      bio: user.bio,
+      created_at: user.created_at,
+      updated_at: user.updated_at,
+    };
   }
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {
@@ -112,8 +119,15 @@ export class AuthService {
       },
     });
 
-    const { password: _password, ...result } = updated;
-    return result;
+    return {
+      id: updated.id,
+      phone: updated.phone,
+      name: updated.name,
+      email: updated.email,
+      bio: updated.bio,
+      created_at: updated.created_at,
+      updated_at: updated.updated_at,
+    };
   }
 
   generateToken(user: {
