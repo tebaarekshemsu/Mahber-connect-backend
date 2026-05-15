@@ -81,6 +81,7 @@ docker-compose down -v
 | `REDIS_HOST` | Yes | Redis hostname |
 | `REDIS_PORT` | Yes | Redis port (default: `6379`) |
 | `REDIS_PASSWORD` | No | Redis password if auth is enabled |
+| `REDIS_TLS` | No | Enable TLS for Redis (`true` for Upstash, `false` for local) |
 | `CHAPA_SECRET_KEY` | Yes | Chapa payment gateway secret key |
 | `CHAPA_BASE_URL` | No | Chapa API base URL (default: `https://api.chapa.co/v1`) |
 | `FIREBASE_PROJECT_ID` | Yes | Firebase project ID for push notifications |

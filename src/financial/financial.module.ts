@@ -9,11 +9,12 @@ import { ChapaService } from './chapa.service';
 import { FineService } from './fine.service';
 import { FineController } from './fine.controller';
 import { LotteryService } from './lottery.service';
+import { LotteryController } from './lottery.controller';
 import { AuditModule } from '../audit/audit.module';
 
 @Module({
   imports: [AuditModule],
-  controllers: [LedgerController, PaymentController, WebhookController, FineController],
+  controllers: [LedgerController, PaymentController, WebhookController, FineController, LotteryController],
   providers: [LedgerService, PaymentService, RoleGuard, ChapaService, FineService, LotteryService],
   exports: [LedgerService, ChapaService, PaymentService, FineService, LotteryService],
 })

@@ -29,7 +29,7 @@ import { envValidationSchema } from './config/env.validation';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
+      envFilePath: ['.env.local', '.env'],
       load: [appConfig, databaseConfig, jwtConfig, chapaConfig, firebaseConfig, redisConfig],
       validationSchema: envValidationSchema,
       validationOptions: {

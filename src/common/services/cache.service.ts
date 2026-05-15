@@ -13,11 +13,13 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     const host = this.configService.get<string>('redis.host', 'localhost');
     const port = this.configService.get<number>('redis.port', 6379);
     const password = this.configService.get<string | undefined>('redis.password');
+    const tls = this.configService.get<any>('redis.tls');
 
     this.client = new Redis({
       host,
       port,
       password,
+      tls,
       lazyConnect: true,
       enableOfflineQueue: false,
     });

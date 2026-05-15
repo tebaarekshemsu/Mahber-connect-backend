@@ -142,7 +142,9 @@ This implementation plan breaks down the MahberConnect backend system into discr
   - [x] 3.6 Implement Mahber CRUD endpoints
     - Create POST /mahbers endpoint with CreateMahberDto
     - Create GET /mahbers endpoint (list user's organizations)
+    - Create GET /mahbers/public endpoint (search public mahbers by name for join page discovery)
     - Create GET /mahbers/:id endpoint with authorization check
+    - Create GET /mahbers/:id/statistics endpoint (member count, active members, upcoming events, payment count)
     - Create PUT /mahbers/:id endpoint (admin only)
     - Create DELETE /mahbers/:id endpoint with active member check
     - _Requirements: 2.1, 2.2, 2.4, 2.7_
@@ -429,6 +431,12 @@ This implementation plan breaks down the MahberConnect backend system into discr
     - Send notifications to all members
     - _Requirements: 9.6, 9.7_
 
+  - [x] 10.4 Implement lottery management endpoints
+    - Create GET /mahbers/:id/lottery/history endpoint (all members)
+    - Create POST /mahbers/:id/lottery/execute endpoint (Treasurer/Admin, MANAGE_FINANCES permission)
+    - Accept optional operationalCostRate and fineThreshold in request body
+    - _Requirements: 9.1, 9.6, 9.7_
+
   - [ ]* 10.5 Write unit tests for lottery system
     - Test eligible member filtering
     - Test winner selection randomness
@@ -500,6 +508,7 @@ This implementation plan breaks down the MahberConnect backend system into discr
   - [x] 13.3 Implement attendance recording endpoints
     - Create GET /mahbers/:id/events/:eventId/qr endpoint (secretary only)
     - Create POST /mahbers/:id/events/:eventId/attendance endpoint
+    - Create POST /mahbers/:id/events/:eventId/process-attendance endpoint (secretary only, queues attendance processing job)
     - Validate QR code and record attendance with timestamp
     - Prevent duplicate attendance records
     - _Requirements: 11.1, 11.4, 11.5_
