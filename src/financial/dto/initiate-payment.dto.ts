@@ -17,14 +17,17 @@ export class InitiatePaymentDto {
   @IsPositive()
   amount: number;
 
+  @IsOptional()
   @IsEmail()
-  email: string;
+  email?: string;
 
+  @IsOptional()
   @IsString()
-  first_name: string;
+  first_name?: string;
 
+  @IsOptional()
   @IsString()
-  last_name: string;
+  last_name?: string;
 
   @IsOptional()
   @IsUrl()

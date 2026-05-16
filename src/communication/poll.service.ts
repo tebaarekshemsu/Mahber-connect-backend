@@ -34,6 +34,7 @@ export class PollService {
     const [data, total] = await this.prisma.$transaction([
       this.prisma.poll.findMany({
         where: { mahber_id: mahberId },
+        include: { votes: true, creator: { select: { id: true, name: true } } },
         orderBy: { created_at: 'desc' },
         skip,
         take: limit,

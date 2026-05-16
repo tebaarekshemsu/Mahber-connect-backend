@@ -67,6 +67,11 @@ export class AuditService {
     const [data, total] = await Promise.all([
       this.prisma.auditTrail.findMany({
         where,
+        include: {
+          actor: {
+            select: { id: true, name: true }
+          }
+        },
         orderBy: { created_at: 'desc' },
         skip,
         take: limit,

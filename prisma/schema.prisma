@@ -22,6 +22,8 @@ model User {
 
   memberships   Membership[]
   join_requests JoinRequest[]
+  audit_actions AuditTrail[]
+  polls         Poll[]
 
   @@map("users")
 }
@@ -305,7 +307,8 @@ model Poll {
   created_by           String
   created_at           DateTime  @default(now())
 
-  votes Vote[]
+  votes   Vote[]
+  creator User   @relation(fields: [created_by], references: [id])
 
   @@index([mahber_id])
   @@map("polls")
@@ -343,6 +346,7 @@ model AuditTrail {
   entity_id   String
   action      String // e.g., 'payment_completed', 'status_transition', 'fine_applied'
   actor_id    String? // optional - system actions may not have an actor
+  actor       User?    @relation(fields: [actor_id], references: [id])
   old_value   Json?
   new_value   Json?
   metadata    Json?

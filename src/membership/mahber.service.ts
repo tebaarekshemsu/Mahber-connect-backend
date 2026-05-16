@@ -106,22 +106,38 @@ export class MahberService {
   }
 
   async findOne(mahberId: string, userId: string) {
-    const membership = await this.prisma.membership.findFirst({
-      where: { mahber_id: mahberId, member_id: userId },
-    });
+    const mahber = await this.prisma.mahber.findUnique({ where: { id: mahberId } });
+    if (!mahber) {
+      throw new NotFoundException('Organization not found');
+    }
 
-    if (!membership) {
-      throw new ForbiddenException('You are not a member of this organization');
+    // Access control:
+    // - Public organizations are visible to everyone
+    // - Private organizations require membership OR a pending join request
+    if (!mahber.is_public) {
+      const membership = await this.prisma.membership.findFirst({
+        where: { mahber_id: mahberId, member_id: userId },
+      });
+
+      if (!membership) {
+        const joinRequest = await this.prisma.joinRequest.findFirst({
+          where: {
+            mahber_id: mahberId,
+            user_id: userId,
+            status: 'Pending',
+          },
+        });
+
+        if (!joinRequest) {
+          throw new ForbiddenException('You do not have access to this organization');
+        }
+      }
     }
 
     const cacheKey = `mahber:settings:${mahberId}`;
     return this.cache.getOrSet(
       cacheKey,
       async () => {
-        const mahber = await this.prisma.mahber.findUnique({ where: { id: mahberId } });
-        if (!mahber) {
-          throw new NotFoundException('Organization not found');
-        }
         return mahber;
       },
       ORG_SETTINGS_TTL,
