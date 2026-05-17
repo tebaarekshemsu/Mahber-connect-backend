@@ -1,8 +1,4 @@
-import {
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { MembershipStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { StateMachineService } from './state-machine.service';
@@ -14,16 +10,10 @@ export class MemberService {
     private readonly stateMachine: StateMachineService,
   ) {}
 
-  async findAll(
-    mahberId: string,
-    userId: string,
-    page: number = 1,
-    limit: number = 20,
-  ) {
+  async findAll(mahberId: string, userId: string, page: number = 1, limit: number = 20) {
     await this.assertMember(mahberId, userId);
 
     const skip = (page - 1) * limit;
-
     const [members, total] = await Promise.all([
       this.prisma.membership.findMany({
         where: { mahber_id: mahberId },
@@ -52,7 +42,7 @@ export class MemberService {
     await this.assertMember(mahberId, userId);
 
     const membership = await this.prisma.membership.findFirst({
-      where: { id: memberId, mahber_id: mahberId },
+      where: { member_id: memberId, mahber_id: mahberId },
       include: {
         user: { select: { id: true, name: true, phone: true } },
       },

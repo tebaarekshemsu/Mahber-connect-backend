@@ -32,12 +32,18 @@ export class MemberController {
   }
 
   @Get(':memberId')
-  findOne(
+  async findOne(
     @Param('id') mahberId: string,
     @Param('memberId') memberId: string,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.memberService.findOne(mahberId, memberId, user.sub);
+    console.log('--- Member Lookup Debug ---');
+    console.log('Mahber ID:', mahberId);
+    console.log('Member ID:', memberId);
+    const result = await this.memberService.findOne(mahberId, memberId, user.sub);
+    console.log('Lookup result:', result);
+    console.log('---------------------------');
+    return result;
   }
 
   @Post(':memberId/suspend')
