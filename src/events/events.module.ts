@@ -11,6 +11,7 @@ import { PhotoService } from './photo.service';
 import { PhotoController } from './photo.controller';
 import { RoleGuard } from '../membership/guards/role.guard';
 import { FinancialModule } from '../financial/financial.module';
+import { CommunicationModule } from '../communication/communication.module';
 import { QUEUE_NAMES } from '../automation/interfaces/job-types';
 
 @Module({
@@ -18,6 +19,7 @@ import { QUEUE_NAMES } from '../automation/interfaces/job-types';
     JwtModule.register({}),
     MulterModule.register(),
     FinancialModule,
+    CommunicationModule,
     BullModule.registerQueue({ name: QUEUE_NAMES.ATTENDANCE_PROCESSOR }),
   ],
   controllers: [EventController, AttendanceController, PhotoController],

@@ -2,8 +2,11 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   HttpCode,
   HttpStatus,
+  Param,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -42,5 +45,28 @@ export class NotificationController {
   ): Promise<void> {
     const userId = dto.userId || user.sub;
     await this.notificationService.unregisterDevice(userId, dto.token);
+  }
+
+  @Get()
+  @ApiOperation({ summary: 'Get all user notifications' })
+  async getUserNotifications(@CurrentUser() user: JwtPayload) {
+    return this.notificationService.getUserNotifications(user.sub);
+  }
+
+  @Patch(':id/read')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Mark a notification as read' })
+  async markAsRead(
+    @CurrentUser() user: JwtPayload,
+    @Param('id') id: string,
+  ): Promise<void> {
+    await this.notificationService.markAsRead(user.sub, id);
+  }
+
+  @Post('read-all')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Mark all notifications as read' })
+  async markAllAsRead(@CurrentUser() user: JwtPayload): Promise<void> {
+    await this.notificationService.markAllAsRead(user.sub);
   }
 }

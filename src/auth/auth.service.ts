@@ -110,6 +110,7 @@ export class AuthService {
         ...(dto.name !== undefined && { name: dto.name }),
         ...(dto.email !== undefined && { email: dto.email }),
         ...(dto.bio !== undefined && { bio: dto.bio }),
+        ...(dto.notification_prefs !== undefined && { notification_prefs: dto.notification_prefs }),
       },
     });
 

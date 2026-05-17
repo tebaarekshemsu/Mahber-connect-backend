@@ -8,12 +8,17 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
+import { NotificationService } from '../communication/notification.service';
+import { NotificationType } from '@prisma/client';
 
 @Injectable()
 export class EventService {
   private readonly logger = new Logger(EventService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   async create(mahberId: string, actorId: string, dto: CreateEventDto) {
     const event = await this.prisma.event.create({
@@ -29,9 +34,13 @@ export class EventService {
       },
     });
 
-    // Notification stub
-    this.logger.log(
-      `[NOTIFICATION STUB] Event created: "${event.title}" (id=${event.id}) in mahber ${mahberId}. Notify all active members.`,
+    await this.notificationService.sendToMahberMembers(
+      mahberId,
+      `New Event Scheduled: ${event.title}`,
+      `A new event has been scheduled at ${event.location} starting on ${event.start_time.toLocaleDateString()}`,
+      { type: 'EVENT_CREATED', id: event.id },
+      NotificationType.event,
+      `/mahbers/${mahberId}/events`
     );
 
     return event;
@@ -123,9 +132,13 @@ export class EventService {
       data: { is_cancelled: true },
     });
 
-    // Notification stub
-    this.logger.log(
-      `[NOTIFICATION STUB] Event cancelled: "${cancelled.title}" (id=${eventId}) in mahber ${mahberId}. Notify all active members.`,
+    await this.notificationService.sendToMahberMembers(
+      mahberId,
+      `Event Cancelled: ${cancelled.title}`,
+      `The event scheduled for ${event.start_time.toLocaleDateString()} has been cancelled.`,
+      { type: 'EVENT_CANCELLED', id: eventId },
+      NotificationType.warning,
+      `/mahbers/${mahberId}/events`
     );
 
     return cancelled;

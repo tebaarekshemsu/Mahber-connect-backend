@@ -4,10 +4,11 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { MembershipStatus } from '@prisma/client';
+import { MembershipStatus, NotificationType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { EditMessageDto } from './dto/edit-message.dto';
+import { NotificationService } from './notification.service';
 
 const EDIT_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -15,7 +16,10 @@ const EDIT_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 export class ChatService {
   private readonly logger = new Logger(ChatService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   async sendMessage(mahberId: string, senderId: string, dto: SendMessageDto) {
     // Requirement 14.2 — must have Active membership
@@ -37,10 +41,20 @@ export class ChatService {
       },
     });
 
-    // Requirement 14.7 — offline notification stub
-    this.logger.log(
-      `[NOTIFICATION STUB] New chat message (id=${message.id}) in mahber ${mahberId} ` +
-        `from sender ${senderId}. Notify offline recipients via push notification.`,
+    const sender = await this.prisma.user.findUnique({
+      where: { id: senderId },
+      select: { name: true },
+    });
+    const senderName = sender?.name || 'A member';
+
+    await this.notificationService.sendToMahberMembers(
+      mahberId,
+      `New message in chat`,
+      `${senderName}: ${dto.content}`,
+      { type: 'CHAT', messageId: message.id },
+      NotificationType.info,
+      `/mahbers/${mahberId}/chat`,
+      senderId,
     );
 
     return message;
