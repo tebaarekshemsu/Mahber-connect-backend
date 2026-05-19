@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateAnnouncementDto } from './dto/create-announcement.dto';
 import { NotificationService } from './notification.service';
 import { NotificationType } from '@prisma/client';
+import { CommunicationGateway } from './communication.gateway';
 
 @Injectable()
 export class AnnouncementService {
@@ -16,6 +17,7 @@ export class AnnouncementService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
+    private readonly gateway: CommunicationGateway,
   ) {}
 
   async create(
@@ -46,6 +48,9 @@ export class AnnouncementService {
         NotificationType.info,
         `/mahbers/${mahberId}`
       );
+      
+      // Emit event via WebSocket to the Mahber room
+      this.gateway.server.to(`mahber_${mahberId}`).emit('new_announcement', announcement);
     }
 
     return announcement;

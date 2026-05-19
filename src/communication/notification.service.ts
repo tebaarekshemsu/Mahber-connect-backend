@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { MembershipStatus, NotificationType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { FirebaseService } from './firebase.service';
+import { CommunicationGateway } from './communication.gateway';
 
 @Injectable()
 export class NotificationService {
@@ -10,6 +11,7 @@ export class NotificationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly firebase: FirebaseService,
+    private readonly gateway: CommunicationGateway,
   ) {}
 
   /** Register or update a device token for a user. */
@@ -49,7 +51,7 @@ export class NotificationService {
     }
 
     // Save in-app notification
-    await this.prisma.notification.create({
+    const notification = await this.prisma.notification.create({
       data: {
         user_id: userId,
         title,
@@ -58,6 +60,9 @@ export class NotificationService {
         link,
       },
     });
+
+    // Emit real-time socket event
+    this.gateway.server.to(`user_${userId}`).emit('new_notification', notification);
 
     const tokens = await this.getActiveTokensForUser(userId);
     if (tokens.length === 0) return;
@@ -107,6 +112,17 @@ export class NotificationService {
         type,
         link,
       })),
+    });
+
+    // Emit real-time socket event to all included members
+    userIds.forEach(userId => {
+      this.gateway.server.to(`user_${userId}`).emit('new_notification', {
+        title,
+        message: body,
+        type,
+        link,
+        created_at: new Date()
+      });
     });
 
     const deviceTokens = await this.prisma.deviceToken.findMany({

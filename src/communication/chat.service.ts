@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { EditMessageDto } from './dto/edit-message.dto';
 import { NotificationService } from './notification.service';
+import { CommunicationGateway } from './communication.gateway';
 
 const EDIT_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -19,6 +20,7 @@ export class ChatService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
+    private readonly gateway: CommunicationGateway,
   ) {}
 
   async sendMessage(mahberId: string, senderId: string, dto: SendMessageDto) {
@@ -56,6 +58,10 @@ export class ChatService {
       `/mahbers/${mahberId}/chat`,
       senderId,
     );
+
+    // Emit event via WebSocket to the Mahber room
+    const messageWithSender = { ...message, sender: { name: senderName } };
+    this.gateway.server.to(`mahber_${mahberId}`).emit('new_message', messageWithSender);
 
     return message;
   }

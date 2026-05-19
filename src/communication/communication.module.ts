@@ -9,10 +9,11 @@ import { FirebaseService } from './firebase.service';
 import { NotificationService } from './notification.service';
 import { NotificationController } from './notification.controller';
 import { RoleGuard } from '../membership/guards/role.guard';
+import { CommunicationGateway } from './communication.gateway';
 
 @Module({
   controllers: [AnnouncementController, ChatController, PollController, NotificationController],
-  providers: [AnnouncementService, ChatService, PollService, FirebaseService, NotificationService, RoleGuard],
+  providers: [AnnouncementService, ChatService, PollService, FirebaseService, NotificationService, RoleGuard, CommunicationGateway],
   exports: [AnnouncementService, ChatService, PollService, NotificationService],
 })
 export class CommunicationModule {}
