@@ -63,3 +63,15 @@ export interface RedisConfig {
   port: number;
   password?: string;
 }
+
+export const cloudinaryConfig = registerAs('cloudinary', () => ({
+  cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+  apiKey: process.env.CLOUDINARY_API_KEY,
+  apiSecret: process.env.CLOUDINARY_API_SECRET,
+}));
+
+export interface CloudinaryConfig {
+  cloudName: string;
+  apiKey: string;
+  apiSecret: string;
+}

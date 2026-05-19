@@ -25,14 +25,26 @@ export class AttendanceService {
    *
    * Validates: Requirements 11.3, 11.4, 11.5
    */
-  async recordAttendance(
-    mahberId: string,
-    eventId: string,
-    memberId: string,
-    qrToken: string,
-  ) {
+  async recordAttendance(mahberId: string, eventId: string, memberId: string, qrToken: string) {
+    this.logger.log(
+      `recordAttendance called: event=${eventId} mahber=${mahberId} member=${memberId}`,
+    );
+    this.logger.debug(`QR token length=${qrToken?.length ?? 0}`);
+
     // Validate QR code (verifies signature, expiration, mahber match)
-    const payload = this.qrService.validateQRCode(qrToken, mahberId);
+    let payload;
+    try {
+      payload = this.qrService.validateQRCode(qrToken, mahberId);
+    } catch (err) {
+      this.logger.warn(
+        `QR validation failed for member=${memberId} event=${eventId} mahber=${mahberId}: ${(err as any)?.message ?? err}`,
+      );
+      throw err;
+    }
+
+    this.logger.debug(
+      `QR validated: event_id=${payload.event_id} mahber_id=${payload.mahber_id} exp=${payload.exp ?? 'n/a'}`,
+    );
 
     if (payload.event_id !== eventId) {
       throw new ForbiddenException('QR code does not match this event');
@@ -57,9 +69,7 @@ export class AttendanceService {
     });
 
     if (!membership) {
-      throw new ForbiddenException(
-        'You must be an active member of this mahber to check in',
-      );
+      throw new ForbiddenException('You must be an active member of this mahber to check in');
     }
 
     // Prevent duplicate attendance
@@ -79,9 +89,7 @@ export class AttendanceService {
       },
     });
 
-    this.logger.log(
-      `Attendance recorded: event=${eventId} member=${memberId} mahber=${mahberId}`,
-    );
+    this.logger.log(`Attendance recorded: event=${eventId} member=${memberId} mahber=${mahberId}`);
 
     return attendance;
   }
@@ -110,11 +118,7 @@ export class AttendanceService {
    *
    * Validates: Requirements 11.7, 8.2
    */
-  async processEventAttendance(
-    mahberId: string,
-    eventId: string,
-    fineService: FineService,
-  ) {
+  async processEventAttendance(mahberId: string, eventId: string, fineService: FineService) {
     const event = await this.prisma.event.findFirst({
       where: { id: eventId, mahber_id: mahberId },
     });
@@ -133,7 +137,9 @@ export class AttendanceService {
       where: { event_id: eventId, mahber_id: mahberId },
     });
 
-    const attendedMemberIds = new Set(attendanceRecords.map((a: { member_id: string }) => a.member_id));
+    const attendedMemberIds = new Set(
+      attendanceRecords.map((a: { member_id: string }) => a.member_id),
+    );
 
     // Determine absent members
     const absentMembers = activeMembers.filter(
@@ -195,9 +201,7 @@ export class AttendanceService {
       }
     }
 
-    this.logger.log(
-      `Fines applied for event=${eventId}: ${finesApplied} fines`,
-    );
+    this.logger.log(`Fines applied for event=${eventId}: ${finesApplied} fines`);
 
     return {
       eventId,

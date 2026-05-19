@@ -230,6 +230,7 @@ model Attendance {
 }
 
 model EventPhoto {
+  cloudinary_public_id String?
   id             String   @id @default(uuid())
   event_id       String
   mahber_id      String
