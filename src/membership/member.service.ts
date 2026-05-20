@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { MembershipStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { StateMachineService } from './state-machine.service';
@@ -6,6 +6,8 @@ import { SuspendMemberDto } from './dto/suspend-member.dto';
 
 @Injectable()
 export class MemberService {
+  private readonly logger = new Logger(MemberService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly stateMachine: StateMachineService,
@@ -171,11 +173,21 @@ export class MemberService {
     });
 
     if (!membership) {
+      this.logger.warn(
+        `assertAdmin: No membership found user=${userId} mahber=${mahberId}`,
+      );
       throw new ForbiddenException('You are not a member of this organization');
     }
 
     const role = membership.role as { name: string; permissions: string[] };
+    this.logger.debug(
+      `assertAdmin: user=${userId} mahber=${mahberId} role="${role?.name}" permissions=[${role?.permissions?.join(', ')}]`,
+    );
+
     if (!role?.permissions?.includes('manage_members')) {
+      this.logger.warn(
+        `assertAdmin: DENIED user=${userId} mahber=${mahberId} — missing manage_members in [${role?.permissions?.join(', ')}]`,
+      );
       throw new ForbiddenException('Admin role required');
     }
   }

@@ -201,6 +201,10 @@ export class ChapaService {
         payload.bank_code = params.bank_code;
       }
 
+      this.logger.debug(
+        `initiateTransfer payload: ${JSON.stringify({ ...payload, account_number: '***' })}`,
+      );
+
       const response = await this.client.post<{
         status: string;
         message: string;

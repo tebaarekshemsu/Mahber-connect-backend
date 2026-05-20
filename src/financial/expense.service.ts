@@ -96,6 +96,10 @@ export class ExpenseService {
 
     const transferRef = `EXP-${expenseId.slice(0, 8)}-${Date.now()}`;
 
+    this.logger.debug(
+      `Calling Chapa transfer: recipient="${expense.recipient_name}" account="${expense.recipient_account}" bank_code="${expense.recipient_bank_code}" amount=${expense.amount}`,
+    );
+
     const chapaResult = await this.chapa.initiateTransfer({
       account_name: expense.recipient_name,
       account_number: expense.recipient_account,
