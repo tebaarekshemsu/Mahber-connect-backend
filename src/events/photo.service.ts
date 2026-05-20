@@ -33,7 +33,7 @@ export class PhotoService {
 
   private uploadBufferToCloudinary(buffer: Buffer, options: Record<string, any>) {
     return new Promise<any>((resolve, reject) => {
-      const uploadStream = this.cloudinary.uploader.upload_stream(options, (error, result) => {
+      const uploadStream = this.cloudinary.uploader.upload_stream(options, (error: any, result: any) => {
         if (error) {
           return reject(error);
         }
