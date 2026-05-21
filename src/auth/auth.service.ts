@@ -130,4 +130,15 @@ export class AuthService {
     };
     return this.jwtService.sign(payload);
   }
+
+  async searchByPhone(phone: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { phone },
+      select: { id: true, name: true, phone: true },
+    });
+    if (!user) {
+      throw new NotFoundException('User with this phone number not found');
+    }
+    return user;
+  }
 }

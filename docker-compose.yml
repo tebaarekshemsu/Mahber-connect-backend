@@ -27,25 +27,25 @@ services:
       timeout: 5s
       retries: 5
 
-  api:
-    build: .
-    ports:
-      - '3000:3000'
-    env_file:
-      - .env
-    environment:
-      DATABASE_URL: postgresql://postgres:password@postgres:5432/mahberconnect?schema=public
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      NODE_ENV: production
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    volumes:
-      - uploads_data:/app/uploads
-    restart: unless-stopped
+  # api:
+  #   build: .
+  #   ports:
+  #     - '3000:3000'
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     DATABASE_URL: postgresql://postgres:password@postgres:5432/mahberconnect?schema=public
+  #     REDIS_HOST: redis
+  #     REDIS_PORT: 6379
+  #     NODE_ENV: production
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   volumes:
+  #     - uploads_data:/app/uploads
+  #   restart: unless-stopped
 
 volumes:
   postgres_data:

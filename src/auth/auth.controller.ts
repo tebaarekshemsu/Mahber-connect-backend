@@ -7,6 +7,7 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import {
@@ -58,6 +59,16 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   getProfile(@CurrentUser() user: JwtPayload) {
     return this.authService.getProfile(user.sub);
+  }
+
+  @Get('users/search')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Search user by phone number' })
+  @ApiResponse({ status: 200, description: 'Returns user if found' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  searchUser(@Query('phone') phone: string) {
+    return this.authService.searchByPhone(phone);
   }
 
   @Put('profile')

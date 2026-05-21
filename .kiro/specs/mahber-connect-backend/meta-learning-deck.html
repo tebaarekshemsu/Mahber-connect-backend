@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Learning to Learn — Meta-Learning</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=JetBrains+Mono:wght@300;400;600&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0d0f14;
+    --surface: #13161e;
+    --gold: #c9a84c;
+    --gold-dim: #7a6230;
+    --amber: #e8b84b;
+    --cream: #f0e8d8;
+    --muted: #6b7280;
+    --text: #ddd6c8;
+    --blue: #4a9eba;
+    --green: #5aad8f;
+    --red: #c0604a;
+    --border: rgba(201,168,76,0.18);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Crimson Pro', Georgia, serif;
+    height: 100vh;
+    overflow: hidden;
+    cursor: default;
+  }
+
+  /* ─── DECK CONTAINER ─── */
+  #deck {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+  }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 60px 80px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.45s ease, transform 0.45s ease;
+    transform: translateY(18px);
+  }
+
+  .slide.active {
+    opacity: 1;
+    pointer-events: all;
+    transform: translateY(0);
+  }
+
+  .slide.exit {
+    opacity: 0;
+    transform: translateY(-18px);
+  }
+
+  /* ─── BACKGROUND GRAIN + GRID ─── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(201,168,76,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(201,168,76,0.03) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.6;
+  }
+
+  .slide > * { position: relative; z-index: 1; }
+
+  /* ─── CORNER ORNAMENTS ─── */
+  .corner {
+    position: fixed;
+    width: 60px; height: 60px;
+    border-color: var(--gold-dim);
+    border-style: solid;
+    opacity: 0.4;
+    z-index: 2;
+    pointer-events: none;
+  }
+  .corner.tl { top:24px; left:24px; border-width: 1px 0 0 1px; }
+  .corner.tr { top:24px; right:24px; border-width: 1px 1px 0 0; }
+  .corner.bl { bottom:24px; left:24px; border-width: 0 0 1px 1px; }
+  .corner.br { bottom:24px; right:24px; border-width: 0 1px 1px 0; }
+
+  /* ─── NAV ─── */
+  #nav {
+    position: fixed;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    z-index: 10;
+    background: rgba(13,15,20,0.8);
+    border: 1px solid var(--border);
+    border-radius: 40px;
+    padding: 10px 20px;
+    backdrop-filter: blur(8px);
+  }
+
+  #nav button {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--gold);
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  #nav button:hover { background: var(--gold); color: var(--bg); }
+  #nav button:disabled { opacity: 0.2; cursor: default; }
+
+  #slide-counter {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    min-width: 60px;
+    text-align: center;
+  }
+
+  #progress-bar {
+    position: fixed;
+    top: 0; left: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--gold), var(--amber));
+    transition: width 0.4s ease;
+    z-index: 10;
+  }
+
+  /* ─── SLIDE NUMBER TAG ─── */
+  .slide-tag {
+    position: fixed;
+    top: 28px; right: 28px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--gold-dim);
+    letter-spacing: 0.15em;
+    z-index: 5;
+  }
+
+  /* ─── TYPOGRAPHY ─── */
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 20px;
+  }
+
+  h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(48px, 6vw, 82px);
+    font-weight: 900;
+    line-height: 1.05;
+    color: var(--cream);
+    margin-bottom: 24px;
+  }
+
+  h1 em { color: var(--gold); font-style: italic; }
+
+  h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(32px, 4vw, 52px);
+    font-weight: 700;
+    color: var(--cream);
+    line-height: 1.1;
+    margin-bottom: 20px;
+  }
+
+  h2 em { color: var(--gold); font-style: italic; }
+
+  h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--amber);
+    margin-bottom: 10px;
+  }
+
+  p {
+    font-size: clamp(17px, 2vw, 22px);
+    line-height: 1.65;
+    color: var(--text);
+    max-width: 780px;
+  }
+
+  p strong { color: var(--cream); font-weight: 600; }
+  p em { color: var(--gold); font-style: italic; }
+
+  .lead {
+    font-size: clamp(20px, 2.5vw, 28px);
+    color: var(--cream);
+    line-height: 1.5;
+    font-weight: 300;
+    max-width: 820px;
+    text-align: center;
+  }
+
+  .lead em { color: var(--gold); font-style: italic; }
+
+  /* ─── DIVIDER ─── */
+  .rule {
+    width: 80px; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    margin: 24px auto;
+  }
+
+  .rule.left { margin: 20px 0; }
+
+  /* ─── MATH BLOCKS ─── */
+  .math {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: clamp(14px, 1.6vw, 18px);
+    color: var(--amber);
+    background: rgba(201,168,76,0.06);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--gold);
+    padding: 16px 24px;
+    margin: 16px 0;
+    border-radius: 4px;
+    line-height: 1.8;
+    width: 100%;
+    max-width: 760px;
+  }
+
+  .math .comment {
+    color: var(--muted);
+    font-size: 0.85em;
+  }
+
+  /* ─── CARDS ─── */
+  .cards {
+    display: grid;
+    gap: 20px;
+    width: 100%;
+    max-width: 1100px;
+  }
+
+  .cards.cols-2 { grid-template-columns: 1fr 1fr; }
+  .cards.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px 28px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--gold);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.4s ease 0.2s;
+  }
+
+  .slide.active .card::before { transform: scaleX(1); }
+
+  .card h3 { margin-bottom: 8px; font-size: 17px; }
+
+  .card p {
+    font-size: 16px;
+    line-height: 1.6;
+    color: #a09880;
+  }
+
+  .card p strong { color: var(--cream); }
+  .card p em { color: var(--gold); }
+
+  .card .tag {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--gold);
+    background: rgba(201,168,76,0.1);
+    border: 1px solid var(--border);
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin-bottom: 12px;
+  }
+
+  /* ─── HIGHLIGHT BOX ─── */
+  .highlight {
+    background: rgba(201,168,76,0.07);
+    border: 1px solid var(--gold-dim);
+    border-radius: 8px;
+    padding: 20px 28px;
+    max-width: 840px;
+    text-align: center;
+  }
+
+  .highlight p {
+    font-size: clamp(18px, 2.2vw, 24px);
+    color: var(--cream);
+    font-weight: 300;
+    font-style: italic;
+  }
+
+  .highlight p strong { color: var(--amber); font-style: normal; }
+
+  /* ─── TABLE ─── */
+  table {
+    width: 100%;
+    max-width: 1000px;
+    border-collapse: collapse;
+    font-size: 15px;
+  }
+
+  th {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--gold);
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+  }
+
+  td {
+    padding: 11px 16px;
+    border-bottom: 1px solid rgba(201,168,76,0.08);
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  tr:last-child td { border-bottom: none; }
+
+  td strong { color: var(--cream); }
+  td em { color: var(--gold); }
+
+  tr:hover td { background: rgba(201,168,76,0.04); }
+
+  /* ─── LIST ─── */
+  ul.deck-list {
+    list-style: none;
+    max-width: 780px;
+    width: 100%;
+  }
+
+  ul.deck-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(201,168,76,0.07);
+    font-size: clamp(16px, 1.8vw, 20px);
+    line-height: 1.5;
+  }
+
+  ul.deck-list li:last-child { border-bottom: none; }
+
+  ul.deck-list li::before {
+    content: '◆';
+    color: var(--gold);
+    font-size: 8px;
+    margin-top: 7px;
+    flex-shrink: 0;
+  }
+
+  ul.deck-list li strong { color: var(--cream); }
+  ul.deck-list li em { color: var(--gold); font-style: italic; }
+
+  /* ─── DIAGRAM ─── */
+  .diagram {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.9;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 20px 28px;
+    border-radius: 6px;
+    max-width: 820px;
+    width: 100%;
+  }
+
+  .diagram .hl { color: var(--amber); }
+  .diagram .dim { color: var(--muted); }
+  .diagram .g { color: var(--green); }
+  .diagram .b { color: var(--blue); }
+  .diagram .r { color: var(--red); }
+
+  /* ─── PILL BADGES ─── */
+  .badge-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 16px;
+  }
+
+  .badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 6px 16px;
+    border-radius: 20px;
+    border: 1px solid;
+    letter-spacing: 0.06em;
+  }
+
+  .badge.gold { color: var(--gold); border-color: var(--gold-dim); background: rgba(201,168,76,0.08); }
+  .badge.blue { color: var(--blue); border-color: rgba(74,158,186,0.3); background: rgba(74,158,186,0.07); }
+  .badge.green { color: var(--green); border-color: rgba(90,173,143,0.3); background: rgba(90,173,143,0.07); }
+  .badge.red { color: var(--red); border-color: rgba(192,96,74,0.3); background: rgba(192,96,74,0.07); }
+
+  /* ─── TWO-COL LAYOUT ─── */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+    width: 100%;
+    max-width: 1100px;
+    align-items: start;
+  }
+
+  .two-col .left, .two-col .right { display: flex; flex-direction: column; gap: 12px; }
+
+  /* ─── SLIDE-SPECIFIC ─── */
+
+  /* Title slide */
+  #slide-1 {
+    text-align: center;
+    background: radial-gradient(ellipse at 50% 40%, rgba(201,168,76,0.07) 0%, transparent 65%);
+  }
+
+  #slide-1 h1 { font-size: clamp(54px, 7vw, 100px); }
+
+  .subtitle {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-top: 8px;
+  }
+
+  /* Separator slide */
+  .sep-slide {
+    text-align: center;
+    background: radial-gradient(ellipse at 50% 50%, rgba(201,168,76,0.05) 0%, transparent 70%);
+  }
+
+  .sep-slide .big-num {
+    font-family: 'Playfair Display', serif;
+    font-size: 140px;
+    font-weight: 900;
+    color: rgba(201,168,76,0.08);
+    line-height: 1;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -55%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Final slide */
+  #slide-last {
+    text-align: center;
+    background: radial-gradient(ellipse at 50% 50%, rgba(201,168,76,0.06) 0%, transparent 60%);
+  }
+
+  /* Keyboard hint */
+  #hint {
+    position: fixed;
+    top: 28px;
+    left: 28px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    z-index: 5;
+  }
+
+  kbd {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 9px;
+  }
+
+  /* wide content */
+  .wide { max-width: 1100px; width: 100%; }
+
+  /* center util */
+  .center { text-align: center; align-items: center; }
+
+  .gap-sm { gap: 12px; }
+  .gap-md { gap: 24px; }
+  .flex-col { display: flex; flex-direction: column; align-items: flex-start; }
+
+</style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+<div class="corner tl"></div>
+<div class="corner tr"></div>
+<div class="corner bl"></div>
+<div class="corner br"></div>
+<div id="hint"><kbd>←</kbd> <kbd>→</kbd> to navigate</div>
+<div class="slide-tag" id="slide-tag">01 / 17</div>
+
+<div id="deck">
+
+  <!-- ══════════════ SLIDE 1 — TITLE ══════════════ -->
+  <div class="slide active" id="slide-1">
+    <div class="eyebrow">A Training on</div>
+    <h1>Learning<br/>to <em>Learn</em></h1>
+    <div class="rule"></div>
+    <p class="lead">An introduction to <em>meta-learning</em> — gradient-based, metric-based, and model-based paradigms</p>
+    <div class="subtitle" style="margin-top:36px;">MAML · Prototypical Networks · Reptile · MANN · SNAIL</div>
+  </div>
+
+  <!-- ══════════════ SLIDE 2 — THE PROBLEM ══════════════ -->
+  <div class="slide" id="slide-2">
+    <div class="eyebrow">Motivation</div>
+    <h2>What's wrong with<br/><em>standard ML?</em></h2>
+    <div class="rule left"></div>
+    <div class="cards cols-2" style="margin-top:20px;">
+      <div class="card">
+        <div class="tag">Standard Learning</div>
+        <h3>One Task, Lots of Data</h3>
+        <p>Train on <strong>thousands of examples</strong> of cats vs. dogs. Works beautifully — but start over for every new task.</p>
+      </div>
+      <div class="card">
+        <div class="tag" style="color:var(--amber);background:rgba(232,184,75,0.1);border-color:rgba(232,184,75,0.2);">Meta-Learning</div>
+        <h3>Many Tasks, Few Examples</h3>
+        <p>Given <strong>5 examples</strong> of a never-seen class, classify it immediately. Not memorization — <em>learning how to learn.</em></p>
+      </div>
+    </div>
+    <div class="highlight" style="margin-top:24px;">
+      <p>The goal: a model that, after seeing <strong>many tasks</strong> during training, can adapt to <strong>any new task</strong> from just a handful of examples.</p>
+    </div>
+  </div>
+
+  <!-- ══════════════ SLIDE 3 — KEY CONCEPTS ══════════════ -->
+  <div class="slide" id="slide-3">
+    <div class="eyebrow">Setup</div>
+    <h2>The Vocabulary</h2>
+    <div class="rule left"></div>
+    <table style="margin-top:16px;">
+      <thead>
+        <tr><th>Term</th><th>Meaning</th><th>Example</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>Task 𝒯ᵢ</strong></td><td>A mini-classification problem</td><td>Distinguish wolf, eagle, fern</td></tr>
+        <tr><td><strong>Task distribution p(𝒯)</strong></td><td>The space all tasks are drawn from</td><td>Omniglot, miniImageNet</td></tr>
+        <tr><td><strong>N-way K-shot</strong></td><td>N classes, K examples each</td><td>5-way 1-shot = 5 classes, 1 example</td></tr>
+        <tr><td><strong>Support set 𝒟ᵗʳ</strong></td><td>The K examples to learn from</td><td>5 labelled images</td></tr>
+        <tr><td><strong>Query set 𝒟ᵗᵉˢᵗ</strong></td><td>Unlabelled items to classify</td><td>New images of same classes</td></tr>
+        <tr><td><strong>Episode</strong></td><td>One support + query split</td><td>One "mini training round"</td></tr>
+        <tr><td><strong>Slow weights</strong></td><td>Meta-learned parameters (θ, φ)</td><td>Change across tasks, slowly</td></tr>
+        <tr><td><strong>Fast weights</strong></td><td>Task-specific state</td><td>Adapt instantly per task</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ══════════════ SLIDE 4 — THREE FAMILIES ══════════════ -->
+  <div class="slide" id="slide-4">
+    <div class="eyebrow">Overview</div>
+    <h2>Three Families of<br/><em>Meta-Learning</em></h2>
+    <div class="rule left"></div>
+    <div class="cards cols-3" style="margin-top:20px;">
+      <div class="card">
+        <div class="tag" style="color:var(--blue);background:rgba(74,158,186,0.08);border-color:rgba(74,158,186,0.2);">Family I</div>
+        <h3 style="color:var(--blue);">Gradient-Based</h3>
+        <p>Learn a good <strong>initialization</strong>. Adapt via gradient steps on the support set at test time.</p>
+        <p style="margin-top:8px;"><em>MAML, Reptile, iMAML</em></p>
+      </div>
+      <div class="card">
+        <div class="tag" style="color:var(--green);background:rgba(90,173,143,0.08);border-color:rgba(90,173,143,0.2);">Family II</div>
+        <h3 style="color:var(--green);">Metric-Based</h3>
+        <p>Learn an <strong>embedding space</strong>. Classify by distance to support set examples — no gradient steps.</p>
+        <p style="margin-top:8px;"><em>ProtoNets, Matching Nets, Relation Nets</em></p>
+      </div>
+      <div class="card">
+        <div class="tag" style="color:var(--red);background:rgba(192,96,74,0.08);border-color:rgba(192,96,74,0.2);">Family III</div>
+        <h3 style="color:var(--red);">Model-Based</h3>
+        <p>Learn a model with <strong>fast internal state</strong>. Absorb the task in one forward pass — no gradients needed.</p>
+        <p style="margin-top:8px;"><em>MANN, SNAIL, Meta-LSTM</em></p>
+      </div>
+    </div>
+    <div class="highlight" style="margin-top:24px;">
+      <p>All three ask: <strong>where do the task-specific "fast weights" live?</strong></p>
+    </div>
+  </div>
+
+  <!-- ══════════════ SLIDE 5 — SEP: GRADIENT-BASED ══════════════ -->
+  <div class="slide sep-slide" id="slide-5">
+    <div class="big-num">I</div>
+    <div class="eyebrow" style="position:relative;z-index:2;">Family One</div>
+    <h2 style="position:relative;z-index:2;font-size:clamp(40px,5vw,68px);">Gradient-Based<br/><em>Meta-Learning</em></h2>
+    <div class="rule" style="position:relative;z-index:2;"></div>
+    <p class="lead" style="position:relative;z-index:2;font-size:20px;">Learn an initialization so good that <em>one gradient step</em> adapts the model to any new task.</p>
+  </div>
+
+  <!-- ══════════════ SLIDE 6 — MAML IDEA ══════════════ -->
+  <div class="slide" id="slide-6">
+    <div class="eyebrow">MAML — Core Idea</div>
+    <h2>The <em>Initialization</em> Insight</h2>
+    <div class="rule left"></div>
+    <div class="two-col" style="margin-top:16px;">
+      <div class="left">
+        <p>Most initializations are equally distant from all task minima. <strong>MAML finds a special point</strong> — close to every task's minimum simultaneously.</p>
+        <p style="margin-top:12px;">Think geometrically: find the <em>"centroid of task minima"</em> in parameter space.</p>
+        <div class="highlight" style="margin-top:16px;text-align:left;padding:16px 20px;">
+          <p style="font-size:17px;">Not: <em>find a model that's good.</em><br/>But: <em>find a model that's one step away from being good at anything.</em></p>
+        </div>
+      </div>
+      <div class="right">
+        <div class="diagram">
+<span class="dim">Parameter space:</span>
+
+     θ*₁ (task 1 min)
+          ·
+    <span class="hl">θ_MAML</span>       · θ*₃
+          ·
+     θ*₂ (task 2 min)
+
+<span class="g">MAML θ is one gradient step</span>
+<span class="g">from each θ*ᵢ.</span>
+        </div>
+        <ul class="deck-list" style="margin-top:12px;">
+          <li><strong>Model-agnostic</strong> — works with any network trained by gradient descent</li>
+          <li><strong>No architectural changes</strong> — pure training procedure</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ SLIDE 7 — MAML ALGORITHM ══════════════ -->
+  <div class="slide" id="slide-7">
+    <div class="eyebrow">MAML — Algorithm</div>
+    <h2>Two Nested <em>Loops</em></h2>
+    <div class="rule left"></div>
+    <div class="two-col" style="margin-top:16px; gap:28px;">
+      <div class="left">
+        <h3>① Inner Loop — Task Adaptation</h3>
+        <p>For each task 𝒯ᵢ, take one gradient step on the <strong>support set</strong> from the shared θ:</p>
+        <div class="math">θ'ᵢ = θ − α ∇_θ ℒᵢ(f_θ, 𝒟ᵗʳ)</div>
+        <p style="font-size:15px; color:var(--muted);">α = inner learning rate. This adapts the model to task i.</p>
+
+        <h3 style="margin-top:20px;">② Outer Loop — Meta-Update</h3>
+        <p>Evaluate adapted model on the <strong>query set</strong>. Update original θ:</p>
+        <div class="math">ℒ_meta = Σᵢ ℒᵢ(f_{θ'ᵢ}, 𝒟ᵗᵉˢᵗ)
+θ ← θ − β ∇_θ ℒ_meta</div>
+        <p style="font-size:15px; color:var(--muted);">β = meta learning rate. Gradient flows <em>through</em> θ'ᵢ back to θ.</p>
+      </div>
+      <div class="right">
+        <div class="diagram" style="font-size:12px;">
+<span class="hl">for</span> each meta-iteration:
+  sample batch of tasks {𝒯ᵢ}
+
+  <span class="b">for</span> each 𝒯ᵢ:
+    sample 𝒟ᵗʳ and 𝒟ᵗᵉˢᵗ
+    <span class="dim"># Inner loop</span>
+    θ'ᵢ = θ − α·∇_θ ℒ(𝒟ᵗʳ)
+
+  <span class="dim"># Outer loop (meta-update)</span>
+  θ ← θ − β·∇_θ Σᵢ ℒ(θ'ᵢ, 𝒟ᵗᵉˢᵗ)
+  <span class="dim">  ↑ gradient through inner step!</span>
+        </div>
+        <div class="highlight" style="text-align:left;padding:14px 18px;margin-top:16px;">
+          <p style="font-size:15px;">The critical subtlety: computing ∂θ'ᵢ/∂θ requires a <strong>Hessian</strong> (2nd-order derivatives).</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ SLIDE 8 — FOMAML + REPTILE ══════════════ -->
+  <div class="slide" id="slide-8">
+    <div class="eyebrow">MAML Variants</div>
+    <h2>FOMAML &amp; <em>Reptile</em></h2>
+    <div class="rule left"></div>
+    <div class="cards cols-2" style="margin-top:20px;">
+      <div class="card">
+        <div class="tag">First-Order MAML</div>
+        <h3>Drop the Hessian</h3>
+        <p>Approximate the meta-gradient by ignoring second-order terms:</p>
+        <div class="math" style="font-size:13px;margin:10px 0;">∇_θ ℒᵗᵉˢᵗ ≈ ∇_{θ'ᵢ} ℒᵗᵉˢᵗ</div>
+        <p>Valid when α is small (Hessian term is O(α)). <strong>Nearly as good empirically.</strong> Requires just one backward pass.</p>
+      </div>
+      <div class="card">
+        <div class="tag" style="color:var(--amber);background:rgba(232,184,75,0.1);border-color:rgba(232,184,75,0.2);">Reptile (Nichol 2018)</div>
+        <h3>No Query Set Needed</h3>
+        <p>Take k steps of SGD on task 𝒯ᵢ to get θ*ᵢ, then:</p>
+        <div class="math" style="font-size:13px;margin:10px 0;">θ ← θ + ε(θ*ᵢ − θ)</div>
+        <p>Just <em>move toward the adapted parameters.</em> With k>1 steps, implicitly maximises within-task gradient coherence — second-order info sneaks back in!</p>
+      </div>
+    </div>
+    <div class="highlight" style="margin-top:20px;">
+      <p>Both FOMAML and Reptile optimise the same thing: <strong>maximise alignment between support-set and query-set gradients</strong> across tasks.</p>
+    </div>
+  </div>
+
+  <!-- ══════════════ SLIDE 9 — SEP: METRIC ══════════════ -->
+  <div class="slide sep-slide" id="slide-9">
+    <div class="big-num">II</div>
+    <div class="eyebrow" style="position:relative;z-index:2;">Family Two</div>
+    <h2 style="position:relative;z-index:2;font-size:clamp(40px,5vw,68px);">Metric-Based<br/><em>Meta-Learning</em></h2>
+    <div class="rule" style="position:relative;z-index:2;"></div>
+    <p class="lead" style="position:relative;z-index:2;font-size:20px;">Learn an embedding space where <em>similarity = proximity</em>. Classification becomes nearest-neighbor search — <em>no gradient steps at test time.</em></p>
+  </div>
+
+  <!-- ══════════════ SLIDE 10 — PROTONETS ══════════════ -->
+  <div class="slide" id="slide-10">
+    <div class="eyebrow">Metric-Based — Prototypical Networks</div>
+    <h2>Classify by <em>Prototype</em></h2>
+    <div class="rule left"></div>
+    <div class="two-col" style="margin-top:16px;">
+      <div class="left">
+        <p>Each class is represented by a single <strong>prototype</strong> — the mean of its support embeddings:</p>
+        <div class="math">cₖ = (1/|Sₖ|) · Σ f_φ(xᵢ)</div>
+        <p style="margin-top:12px;">Classify queries by softmax over <strong>Euclidean distance</strong> to prototypes:</p>
+        <div class="math">P(y=k|x̂) = softmax(−d(f_φ(x̂), cₖ))</div>
+        <p style="margin-top:12px; font-size:15px; color:var(--muted);">Why Euclidean? Under Gaussian cluster assumptions, distance to the class mean is the Bayes-optimal classifier.</p>
+      </div>
+      <div class="right">
+        <div class="diagram">
+<span class="dim">Embedding space ℝᵈ:</span>
+
+  🟡 🟡    <span class="hl">c₁ ●</span>   <span class="dim">← class 1 prototype</span>
+  🟡
+
+              <span class="b">c₂ ●</span>   <span class="dim">← class 2 prototype</span>
+   🔵  🔵
+
+<span class="g">query x̂ → embed → nearest cₖ → class</span>
+        </div>
+        <div class="highlight" style="text-align:left;padding:14px 18px;margin-top:16px;">
+          <p style="font-size:15px;"><strong>1-shot case:</strong> prototype = the single example. ProtoNets ≡ Matching Nets in this regime.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ SLIDE 11 — MATCHING + RELATION ══════════════ -->
+  <div class="slide" id="slide-11">
+    <div class="eyebrow">Metric-Based — Other Methods</div>
+    <h2>Matching &amp; <em>Relation</em> Networks</h2>
+    <div class="rule left"></div>
+    <div class="cards cols-2" style="margin-top:20px;">
+      <div class="card">
+        <div class="tag" style="color:var(--blue);background:rgba(74,158,186,0.08);border-color:rgba(74,158,186,0.2);">Matching Networks (2016)</div>
+        <h3>Soft Nearest Neighbor</h3>
+        <p>Predict as a weighted sum over support labels using cosine attention:</p>
+        <div class="math" style="font-size:12px;margin:8px 0;">P(y|x̂,S) = Σᵢ a(x̂,xᵢ)·yᵢ</div>
+        <p>Key innovation: <em>context-aware embeddings</em> — the embedding of each support example depends on the full support set (via biLSTM). The "right" features for a wolf depend on what else is in the episode.</p>
+      </div>
+      <div class="card">
+        <div class="tag" style="color:var(--green);background:rgba(90,173,143,0.08);border-color:rgba(90,173,143,0.2);">Relation Networks (2018)</div>
+        <h3>Learned Distance</h3>
+        <p>Don't hand-choose Euclidean or cosine — <strong>learn the metric</strong>:</p>
+        <div class="math" style="font-size:12px;margin:8px 0;">r = g_φ(concat(f(x̂), f(xₖ)))</div>
+        <p>A small network g_φ outputs a relation score in [0,1]. Can capture <em>non-Euclidean, non-symmetric</em> similarity structure.</p>
+      </div>
+    </div>
+    <div class="highlight" style="margin-top:20px;">
+      <p>The meta-learning in all three: episodic training forces embeddings to <strong>generalise to novel classes</strong>, not just memorise training ones.</p>
+    </div>
+  </div>
+
+  <!-- ══════════════ SLIDE 12 — SEP: MODEL-BASED ══════════════ -->
+  <div class="slide sep-slide" id="slide-12">
+    <div class="big-num">III</div>
+    <div class="eyebrow" style="position:relative;z-index:2;">Family Three</div>
+    <h2 style="position:relative;z-index:2;font-size:clamp(40px,5vw,68px);">Model-Based<br/><em>Meta-Learning</em></h2>
+    <div class="rule" style="position:relative;z-index:2;"></div>
+    <p class="lead" style="position:relative;z-index:2;font-size:20px;">Build a model with enough <em>internal capacity</em> to absorb an entire task from a handful of examples — in a single forward pass.</p>
+  </div>
+
+  <!-- ══════════════ SLIDE 13 — MANN + SNAIL ══════════════ -->
+  <div class="slide" id="slide-13">
+    <div class="eyebrow">Model-Based — MANN &amp; SNAIL</div>
+    <h2>Fast Weights in <em>Memory</em></h2>
+    <div class="rule left"></div>
+    <div class="cards cols-2" style="margin-top:20px;">
+      <div class="card">
+        <div class="tag" style="color:var(--red);background:rgba(192,96,74,0.08);border-color:rgba(192,96,74,0.2);">MANN — NTM (2016)</div>
+        <h3>External Memory Matrix</h3>
+        <p>An LSTM controller reads/writes to an <strong>external memory M ∈ ℝᴺˣᵈ</strong> via soft attention heads.</p>
+        <p style="margin-top:8px;">Labels arrive shifted by one step — forcing the model to <em>bind inputs to labels in memory</em> and retrieve them for future queries. Fast weights = memory slots.</p>
+      </div>
+      <div class="card">
+        <div class="tag" style="color:var(--amber);background:rgba(232,184,75,0.08);border-color:rgba(232,184,75,0.2);">SNAIL (2018)</div>
+        <h3>TCN + Attention</h3>
+        <p>The episode is a <strong>sequence</strong>: (x₁,y₁, x₂,y₂,…, x̂).</p>
+        <p style="margin-top:8px;"><em>Temporal convolutions</em> capture local dependencies. <em>Attention</em> allows global retrieval of any past example. Interleaving both handles both local dynamics and global memory.</p>
+        <p style="margin-top:8px;">Works for <strong>both classification and RL</strong> with the same architecture.</p>
+      </div>
+    </div>
+    <div class="highlight" style="margin-top:20px;">
+      <p><strong>Core limit:</strong> the learning algorithm is bounded by the architecture's capacity. Complex tasks may need more adaptation depth than the network allows.</p>
+    </div>
+  </div>
+
+  <!-- ══════════════ SLIDE 14 — COMPARISON ══════════════ -->
+  <div class="slide" id="slide-14">
+    <div class="eyebrow">Synthesis</div>
+    <h2>Head-to-Head <em>Comparison</em></h2>
+    <div class="rule left"></div>
+    <table style="margin-top:16px; font-size:14px;">
+      <thead>
+        <tr>
+          <th>Dimension</th>
+          <th style="color:var(--blue);">Gradient-Based</th>
+          <th style="color:var(--green);">Metric-Based</th>
+          <th style="color:var(--red);">Model-Based</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>What is learned?</strong></td>
+          <td>Initialization θ</td>
+          <td>Embedding space φ</td>
+          <td>Model weights + architecture</td>
+        </tr>
+        <tr>
+          <td><strong>Test-time adaptation</strong></td>
+          <td>Gradient steps on support</td>
+          <td>None — nearest neighbor</td>
+          <td>Forward pass only</td>
+        </tr>
+        <tr>
+          <td><strong>Fast weights stored in</strong></td>
+          <td>Explicit θ'ᵢ (updated params)</td>
+          <td>Prototype positions cₖ</td>
+          <td>Memory matrix / LSTM state</td>
+        </tr>
+        <tr>
+          <td><strong>Compute at test time</strong></td>
+          <td>O(steps · d) — expensive</td>
+          <td>O(NK) — cheap</td>
+          <td>O(seq length)</td>
+        </tr>
+        <tr>
+          <td><strong>Wins when</strong></td>
+          <td>Params must shift substantially</td>
+          <td>Structure is geometric</td>
+          <td>Task needs sequential reasoning</td>
+        </tr>
+        <tr>
+          <td><strong>Interpretability</strong></td>
+          <td>Medium</td>
+          <td><em>High</em> — inspect embedding space</td>
+          <td>Low — opaque internal state</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ══════════════ SLIDE 15 — FAST WEIGHTS UNIFICATION ══════════════ -->
+  <div class="slide" id="slide-15">
+    <div class="eyebrow">Unifying View</div>
+    <h2>The <em>Fast Weights</em> Lens</h2>
+    <div class="rule left"></div>
+    <p style="margin-top:8px; max-width:860px;">All meta-learning families answer the same question differently: <em>where does task-specific information live?</em></p>
+    <div class="diagram" style="margin-top:20px; max-width:900px;">
+<span class="dim">┌───────────────────────────────────────────────────────────────┐</span>
+<span class="dim">│</span>                    META-LEARNING FAMILIES                    <span class="dim">│</span>
+<span class="dim">├────────────────┬──────────────────┬────────────────────────────┤</span>
+<span class="dim">│</span> <span class="b">GRADIENT-BASED</span> <span class="dim">│</span> <span class="g">METRIC-BASED</span>     <span class="dim">│</span> <span class="r">MODEL-BASED</span>              <span class="dim">│</span>
+<span class="dim">├────────────────┼──────────────────┼────────────────────────────┤</span>
+<span class="dim">│</span> Fast weights = <span class="dim">│</span> Fast weights =   <span class="dim">│</span> Fast weights =           <span class="dim">│</span>
+<span class="dim">│</span> <span class="hl">explicit θ'ᵢ</span>   <span class="dim">│</span> <span class="hl">prototypes cₖ</span>   <span class="dim">│</span> <span class="hl">memory M / LSTM state</span>    <span class="dim">│</span>
+<span class="dim">│</span> (gradient upd) <span class="dim">│</span> (mean in ℝᵈ)    <span class="dim">│</span> (written per episode)    <span class="dim">│</span>
+<span class="dim">│</span>                <span class="dim">│</span>                 <span class="dim">│</span>                          <span class="dim">│</span>
+<span class="dim">│</span> Slow weights = <span class="dim">│</span> Slow weights =  <span class="dim">│</span> Slow weights =           <span class="dim">│</span>
+<span class="dim">│</span> <span class="hl">init θ (MAML)</span>  <span class="dim">│</span> <span class="hl">encoder φ</span>       <span class="dim">│</span> <span class="hl">all model weights</span>        <span class="dim">│</span>
+<span class="dim">└────────────────┴──────────────────┴────────────────────────────┘</span>
+    </div>
+    <div class="highlight" style="margin-top:20px;">
+      <p>Hinton's "fast weights" intuition unifies them all: <strong>slow weights encode prior knowledge, fast weights encode the current task.</strong></p>
+    </div>
+  </div>
+
+  <!-- ══════════════ SLIDE 16 — IN-CONTEXT LEARNING ══════════════ -->
+  <div class="slide" id="slide-16">
+    <div class="eyebrow">Modern Connection</div>
+    <h2>Meta-Learning &amp; <em>Transformers</em></h2>
+    <div class="rule left"></div>
+    <div class="two-col" style="margin-top:16px;">
+      <div class="left">
+        <p>Large Transformers doing <strong>in-context learning</strong> are, at their core, model-based meta-learners:</p>
+        <ul class="deck-list" style="margin-top:12px;">
+          <li><strong>Slow weights</strong> = transformer parameters (learned across vast task distribution during pretraining)</li>
+          <li><strong>Fast weights</strong> = the key-value cache of the context (few-shot examples in the prompt)</li>
+          <li><strong>Adaptation</strong> = attention over context — structurally identical to Matching Networks</li>
+        </ul>
+        <div class="highlight" style="text-align:left;padding:14px 18px;margin-top:16px;">
+          <p style="font-size:16px;">GPT few-shot prompting = <em>SNAIL at scale.</em> The formalism makes this precise.</p>
+        </div>
+      </div>
+      <div class="right">
+        <div class="diagram">
+<span class="dim">Prompt (support set):</span>
+
+<span class="g">"wolf" → embedding</span>
+<span class="g">"eagle" → embedding</span>
+<span class="g">"fern" → embedding</span>
+
+<span class="dim">Query:</span>
+<span class="hl">"[new image]" → attend over context</span>
+               <span class="hl">→ predict class</span>
+
+<span class="dim">This IS metric-based meta-learning.</span>
+<span class="dim">The Transformer learned how to do it</span>
+<span class="dim">from billions of implicit tasks.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ SLIDE 17 — SUMMARY ══════════════ -->
+  <div class="slide" id="slide-last">
+    <div class="eyebrow">Summary</div>
+    <h2>What to <em>Remember</em></h2>
+    <div class="rule"></div>
+    <div class="cards cols-3" style="margin-top:20px; max-width:1000px;">
+      <div class="card" style="text-align:center;">
+        <div style="font-size:28px;margin-bottom:8px;">📐</div>
+        <h3 style="color:var(--blue);font-size:15px;">Gradient-Based</h3>
+        <p style="font-size:14px;"><em>Learn where to start.</em> MAML finds an init one gradient step from any task optimum.</p>
+      </div>
+      <div class="card" style="text-align:center;">
+        <div style="font-size:28px;margin-bottom:8px;">🌐</div>
+        <h3 style="color:var(--green);font-size:15px;">Metric-Based</h3>
+        <p style="font-size:14px;"><em>Learn a geometry.</em> ProtoNets collapses each class to a prototype; nearest prototype wins.</p>
+      </div>
+      <div class="card" style="text-align:center;">
+        <div style="font-size:28px;margin-bottom:8px;">🧠</div>
+        <h3 style="color:var(--red);font-size:15px;">Model-Based</h3>
+        <p style="font-size:14px;"><em>Learn an algorithm.</em> MANN/SNAIL reads the task, writes to memory, predicts — no gradient needed.</p>
+      </div>
+    </div>
+    <div class="highlight" style="margin-top:24px;max-width:820px;">
+      <p>The unifying question: <em>"Where do the fast weights live?"</em><br/><strong>In a gradient update · In prototype positions · In memory state.</strong></p>
+    </div>
+    <div class="badge-row" style="margin-top:24px;">
+      <span class="badge gold">MAML</span>
+      <span class="badge gold">Reptile</span>
+      <span class="badge gold">FOMAML</span>
+      <span class="badge green">ProtoNets</span>
+      <span class="badge green">Matching Nets</span>
+      <span class="badge green">Relation Nets</span>
+      <span class="badge red">MANN</span>
+      <span class="badge red">SNAIL</span>
+      <span class="badge blue">In-Context LLMs</span>
+    </div>
+  </div>
+
+</div><!-- /deck -->
+
+<div id="nav">
+  <button id="btn-prev" onclick="changeSlide(-1)" title="Previous">←</button>
+  <span id="slide-counter">01 / 17</span>
+  <button id="btn-next" onclick="changeSlide(1)" title="Next">→</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+  let current = 0;
+
+  function changeSlide(dir) {
+    const next = current + dir;
+    if (next < 0 || next >= total) return;
+
+    slides[current].classList.remove('active');
+    slides[current].classList.add('exit');
+    setTimeout(() => slides[current < next ? current : next + 1]?.classList.remove('exit'), 500);
+
+    current = next;
+    slides[current].classList.add('active');
+
+    // remove exit from previous
+    setTimeout(() => {
+      document.querySelectorAll('.slide.exit').forEach(s => s.classList.remove('exit'));
+    }, 500);
+
+    updateUI();
+  }
+
+  function updateUI() {
+    const n = current + 1;
+    document.getElementById('slide-counter').textContent =
+      String(n).padStart(2,'0') + ' / ' + String(total).padStart(2,'0');
+    document.getElementById('slide-tag').textContent =
+      String(n).padStart(2,'0') + ' / ' + String(total).padStart(2,'0');
+    document.getElementById('progress-bar').style.width = ((n / total) * 100) + '%';
+    document.getElementById('btn-prev').disabled = current === 0;
+    document.getElementById('btn-next').disabled = current === total - 1;
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ') changeSlide(1);
+    if (e.key === 'ArrowLeft') changeSlide(-1);
+  });
+
+  // Touch/swipe
+  let touchX = 0;
+  document.addEventListener('touchstart', e => { touchX = e.touches[0].clientX; });
+  document.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 50) changeSlide(dx < 0 ? 1 : -1);
+  });
+
+  updateUI();
+</script>
+</body>
+</html>

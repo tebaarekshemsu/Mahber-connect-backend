@@ -28,6 +28,15 @@ export class JoinRequestController {
     return this.joinRequestService.findAll(mahberId, user.sub);
   }
 
+  @Post('invite')
+  invite(
+    @Param('id') mahberId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: { phone: string },
+  ) {
+    return this.joinRequestService.invite(mahberId, user.sub, dto.phone);
+  }
+
   @Put(':requestId')
   processRequest(
     @Param('id') mahberId: string,

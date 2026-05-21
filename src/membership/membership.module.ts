@@ -4,6 +4,7 @@ import { MahberService } from './mahber.service';
 import { StateMachineService } from './state-machine.service';
 import { JoinRequestController } from './join-request.controller';
 import { JoinRequestService } from './join-request.service';
+import { InvitationController } from './invitation.controller';
 import { MemberController } from './member.controller';
 import { MemberService } from './member.service';
 import { RoleController } from './role.controller';
@@ -14,7 +15,13 @@ import { AuditModule } from '../audit/audit.module';
 
 @Module({
   imports: [AuditModule],
-  controllers: [MahberController, JoinRequestController, MemberController, RoleController],
+  controllers: [
+    MahberController,
+    JoinRequestController,
+    InvitationController,
+    MemberController,
+    RoleController,
+  ],
   providers: [MahberService, StateMachineService, JoinRequestService, MemberService, RoleService, RoleGuard, TenantGuard],
   exports: [MahberService, StateMachineService, JoinRequestService, MemberService, RoleService, RoleGuard, TenantGuard],
 })

@@ -112,6 +112,102 @@ export class JoinRequestService {
     return updatedRequest;
   }
 
+  async invite(mahberId: string, adminId: string, phone: string) {
+    await this.assertAdmin(mahberId, adminId);
+
+    const invitedUser = await this.prisma.user.findUnique({ where: { phone } });
+    if (!invitedUser) {
+      throw new NotFoundException('User with this phone number not found');
+    }
+
+    const existingMember = await this.prisma.membership.findFirst({
+      where: { mahber_id: mahberId, member_id: invitedUser.id }
+    });
+    if (existingMember) {
+      throw new ConflictException('User is already a member of this organization');
+    }
+
+    const existing = await this.prisma.joinRequest.findFirst({
+      where: {
+        mahber_id: mahberId,
+        user_id: invitedUser.id,
+        status: { in: [JoinRequestStatus.Pending, JoinRequestStatus.Approved] },
+      },
+    });
+    if (existing) {
+      throw new ConflictException('An active join request or invitation already exists for this user');
+    }
+
+    return this.prisma.joinRequest.create({
+      data: {
+        mahber_id: mahberId,
+        user_id: invitedUser.id,
+        status: JoinRequestStatus.Pending,
+        is_invitation: true,
+      },
+      include: { mahber: true }
+    });
+  }
+
+  async getInvitationsForUser(userId: string) {
+    return this.prisma.joinRequest.findMany({
+      where: {
+        user_id: userId,
+        is_invitation: true,
+        status: JoinRequestStatus.Pending,
+      },
+      include: {
+        mahber: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+          }
+        }
+      },
+      orderBy: { created_at: 'desc' },
+    });
+  }
+
+  async respondToInvitation(requestId: string, userId: string, action: 'accept' | 'reject') {
+    const invitation = await this.prisma.joinRequest.findFirst({
+      where: { id: requestId, user_id: userId, is_invitation: true },
+    });
+
+    if (!invitation) {
+      throw new NotFoundException('Invitation not found');
+    }
+
+    if (invitation.status !== JoinRequestStatus.Pending) {
+      throw new BadRequestException('Only pending invitations can be responded to');
+    }
+
+    if (action === 'reject') {
+      return this.prisma.joinRequest.update({
+        where: { id: requestId },
+        data: { status: JoinRequestStatus.Rejected },
+      });
+    }
+
+    const [updatedRequest] = await this.prisma.$transaction([
+      this.prisma.joinRequest.update({
+        where: { id: requestId },
+        data: { status: JoinRequestStatus.Approved },
+      }),
+      this.prisma.membership.create({
+        data: {
+          mahber_id: invitation.mahber_id,
+          member_id: userId,
+          status: MembershipStatus.Payment_Required,
+          role: { name: 'Member', permissions: [] },
+          approval_date: new Date(),
+        },
+      }),
+    ]);
+
+    return updatedRequest;
+  }
+
   private async assertAdmin(mahberId: string, userId: string) {
     const membership = await this.prisma.membership.findFirst({
       where: { mahber_id: mahberId, member_id: userId },
