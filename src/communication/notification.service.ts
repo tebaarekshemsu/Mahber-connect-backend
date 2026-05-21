@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { MembershipStatus } from '@prisma/client';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { MembershipStatus, NotificationType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { FirebaseService } from './firebase.service';
+import { CommunicationGateway } from './communication.gateway';
 
 @Injectable()
 export class NotificationService {
@@ -10,6 +11,7 @@ export class NotificationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly firebase: FirebaseService,
+    private readonly gateway: CommunicationGateway,
   ) {}
 
   /** Register or update a device token for a user. */
@@ -31,13 +33,37 @@ export class NotificationService {
     this.logger.log(`Device unregistered for user ${userId}`);
   }
 
-  /** Send a push notification to all active devices of a user. */
   async sendToUser(
     userId: string,
     title: string,
     body: string,
     data?: Record<string, string>,
+    type: NotificationType = NotificationType.info,
+    link?: string,
   ): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { notification_prefs: true },
+    });
+
+    if (!this.isNotificationEnabled(type, data?.type, user?.notification_prefs)) {
+      return;
+    }
+
+    // Save in-app notification
+    const notification = await this.prisma.notification.create({
+      data: {
+        user_id: userId,
+        title,
+        message: body,
+        type,
+        link,
+      },
+    });
+
+    // Emit real-time socket event
+    this.gateway.server.to(`user_${userId}`).emit('new_notification', notification);
+
     const tokens = await this.getActiveTokensForUser(userId);
     if (tokens.length === 0) return;
 
@@ -53,15 +79,51 @@ export class NotificationService {
     title: string,
     body: string,
     data?: Record<string, string>,
+    type: NotificationType = NotificationType.info,
+    link?: string,
+    excludeUserId?: string,
   ): Promise<void> {
     const memberships = await this.prisma.membership.findMany({
-      where: { mahber_id: mahberId, status: MembershipStatus.Active },
-      select: { member_id: true },
+      where: { 
+        mahber_id: mahberId, 
+        status: MembershipStatus.Active,
+        ...(excludeUserId && { member_id: { not: excludeUserId } }),
+      },
+      select: { member_id: true, user: { select: { notification_prefs: true } } },
     });
 
     if (memberships.length === 0) return;
 
-    const userIds = memberships.map((m: { member_id: string }) => m.member_id);
+    // Filter users based on their notification preferences
+    const activeMembers = memberships.filter((m) => 
+      this.isNotificationEnabled(type, data?.type, m.user?.notification_prefs)
+    );
+
+    if (activeMembers.length === 0) return;
+
+    const userIds = activeMembers.map((m) => m.member_id);
+
+    // Save in-app notifications in bulk
+    await this.prisma.notification.createMany({
+      data: userIds.map((userId: string) => ({
+        user_id: userId,
+        title,
+        message: body,
+        type,
+        link,
+      })),
+    });
+
+    // Emit real-time socket event to all included members
+    userIds.forEach(userId => {
+      this.gateway.server.to(`user_${userId}`).emit('new_notification', {
+        title,
+        message: body,
+        type,
+        link,
+        created_at: new Date()
+      });
+    });
 
     const deviceTokens = await this.prisma.deviceToken.findMany({
       where: { user_id: { in: userIds }, is_active: true },
@@ -75,6 +137,49 @@ export class NotificationService {
     this.logger.log(
       `Notification sent to mahber ${mahberId} members: ${result.successCount} success, ${result.failureCount} failed`,
     );
+  }
+
+  /** Get all notifications for a user */
+  async getUserNotifications(userId: string) {
+    return this.prisma.notification.findMany({
+      where: { user_id: userId },
+      orderBy: { created_at: 'desc' },
+    });
+  }
+
+  /** Mark a specific notification as read */
+  async markAsRead(userId: string, notificationId: string): Promise<void> {
+    const notification = await this.prisma.notification.findUnique({
+      where: { id: notificationId },
+    });
+
+    if (!notification || notification.user_id !== userId) {
+      throw new NotFoundException('Notification not found');
+    }
+
+    await this.prisma.notification.update({
+      where: { id: notificationId },
+      data: { is_read: true },
+    });
+  }
+
+  /** Mark all notifications as read for a user */
+  async markAllAsRead(userId: string): Promise<void> {
+    await this.prisma.notification.updateMany({
+      where: { user_id: userId, is_read: false },
+      data: { is_read: true },
+    });
+  }
+
+  private isNotificationEnabled(type: NotificationType, customType?: string, prefs?: any): boolean {
+    if (!prefs) return true; // Default is true
+
+    if (type === NotificationType.payment) return prefs.payments !== false;
+    if (type === NotificationType.event) return prefs.events !== false;
+    if (customType === 'ANNOUNCEMENT') return prefs.announcements !== false;
+    if (customType === 'CHAT') return prefs.chat !== false;
+
+    return true; // Default for other types
   }
 
   private async getActiveTokensForUser(userId: string): Promise<string[]> {

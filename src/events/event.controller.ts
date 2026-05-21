@@ -3,20 +3,34 @@ import {
   Controller,
   Delete,
   Get,
+  NotFoundException,
   Param,
   Post,
   Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiParam,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RoleGuard } from '../membership/guards/role.guard';
 import { RequirePermission } from '../membership/decorators/require-permission.decorator';
 import { PERMISSIONS } from '../membership/rbac/permissions';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { MembershipStatus } from '@prisma/client';
+import * as QRCode from 'qrcode';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { EventService } from './event.service';
+import { QrService } from './qr.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 
@@ -25,7 +39,13 @@ import { UpdateEventDto } from './dto/update-event.dto';
 @UseGuards(JwtAuthGuard, RoleGuard)
 @Controller('mahbers/:id/events')
 export class EventController {
-  constructor(private readonly eventService: EventService) { }
+  constructor(
+    private readonly eventService: EventService,
+    private readonly qrService: QrService,
+    private readonly prisma: PrismaService,
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
+  ) {}
 
   @Post()
   @RequirePermission(PERMISSIONS.CREATE_EVENTS)
@@ -47,11 +67,7 @@ export class EventController {
   @ApiQuery({ name: 'page', required: false, description: 'Page number', example: 1 })
   @ApiQuery({ name: 'limit', required: false, description: 'Items per page', example: 20 })
   @ApiResponse({ status: 200, description: 'Events retrieved successfully' })
-  findAll(
-    @Param('id') mahberId: string,
-    @Query('page') page = '1',
-    @Query('limit') limit = '20',
-  ) {
+  findAll(@Param('id') mahberId: string, @Query('page') page = '1', @Query('limit') limit = '20') {
     return this.eventService.findAll(
       mahberId,
       Math.max(1, parseInt(page, 10) || 1),
@@ -65,11 +81,44 @@ export class EventController {
   @ApiParam({ name: 'eventId', description: 'Event ID' })
   @ApiResponse({ status: 200, description: 'Event details retrieved successfully' })
   @ApiResponse({ status: 404, description: 'Event not found' })
-  findOne(
+  findOne(@Param('id') mahberId: string, @Param('eventId') eventId: string) {
+    return this.eventService.findOne(mahberId, eventId);
+  }
+
+  @Get(':eventId/user-qr')
+  @ApiOperation({ summary: 'Generate personal QR code for current user' })
+  @ApiParam({ name: 'id', description: 'Mahber ID' })
+  @ApiParam({ name: 'eventId', description: 'Event ID' })
+  @ApiResponse({ status: 200, description: 'QR code generated successfully' })
+  @ApiResponse({ status: 404, description: 'Event or membership not found' })
+  async getUserQr(
     @Param('id') mahberId: string,
     @Param('eventId') eventId: string,
+    @CurrentUser() user: JwtPayload,
   ) {
-    return this.eventService.findOne(mahberId, eventId);
+    const event = await this.eventService.findOne(mahberId, eventId);
+    const membership = await this.prisma.membership.findFirst({
+      where: {
+        member_id: user.sub,
+        mahber_id: mahberId,
+        status: MembershipStatus.Active,
+      },
+    });
+    if (!membership) {
+      throw new NotFoundException('User is not a member of this mahber');
+    }
+    const expSeconds = Math.floor(event.end_time.getTime() / 1000) + 30 * 60;
+    const payload = {
+      event_id: event.id,
+      mahber_id: event.mahber_id,
+      member_id: user.sub,
+      exp: expSeconds,
+    };
+    const token = await this.jwtService.signAsync(payload, {
+      secret: this.configService.get('jwt.secret'),
+    });
+    const dataUrl = await QRCode.toDataURL(token);
+    return { qr_code: dataUrl };
   }
 
   @Put(':eventId')

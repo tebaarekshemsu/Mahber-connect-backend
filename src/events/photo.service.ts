@@ -5,85 +5,94 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import * as fs from 'fs';
-import * as path from 'path';
+import { ConfigService } from '@nestjs/config';
+import { v2 as cloudinary } from 'cloudinary';
 import { PrismaService } from '../prisma/prisma.service';
 
-// Task 14.1: File upload configuration constants
-export const UPLOAD_CONFIG = {
-  MAX_FILE_SIZE: 10 * 1024 * 1024, // 10MB
-  ALLOWED_MIME_TYPES: ['image/jpeg', 'image/png'],
-  UPLOAD_DIR: './uploads/photos',
-  THUMBNAIL_DIR: './uploads/thumbnails',
-  THUMBNAIL_SIZE: 300,
-  STORAGE_QUOTA: 1000, // max photos per org
-};
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png'];
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const STORAGE_QUOTA = 1000;
 
 @Injectable()
 export class PhotoService {
   private readonly logger = new Logger(PhotoService.name);
+  private cloudinary;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+  ) {
+    cloudinary.config({
+      cloud_name: this.configService.get<string>('CLOUDINARY_CLOUD_NAME'),
+      api_key: this.configService.get<string>('CLOUDINARY_API_KEY'),
+      api_secret: this.configService.get<string>('CLOUDINARY_API_SECRET'),
+      secure: true,
+    });
+    this.cloudinary = cloudinary;
+  }
 
-  /**
-   * Task 14.2: Generate a 300x300 thumbnail using sharp.
-   * Validates: Requirement 12.3
-   */
-  async generateThumbnail(inputPath: string, outputPath: string): Promise<void> {
-    // Dynamic import so sharp is optional at module load time
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const sharp = require('sharp');
-    const dir = path.dirname(outputPath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    await sharp(inputPath)
-      .resize(UPLOAD_CONFIG.THUMBNAIL_SIZE, UPLOAD_CONFIG.THUMBNAIL_SIZE, {
-        fit: 'cover',
-        position: 'centre',
-      })
-      .toFile(outputPath);
+  private uploadBufferToCloudinary(buffer: Buffer, options: Record<string, any>) {
+    return new Promise<any>((resolve, reject) => {
+      const uploadStream = this.cloudinary.uploader.upload_stream(options, (error: any, result: any) => {
+        if (error) {
+          return reject(error);
+        }
+        if (!result) {
+          return reject(new Error('Cloudinary upload failed without a response'));
+        }
+        return resolve(result);
+      });
+
+      uploadStream.end(buffer);
+    });
   }
 
   /**
    * Task 14.5: Check storage quota — reject if org already has >= 1000 photos.
    * Validates: Requirement 12.6
    */
-  async checkStorageQuota(mahberId: string): Promise<void> {
+  async checkStorageQuota(mahberId: string, incomingCount = 1): Promise<void> {
     const count = await this.prisma.eventPhoto.count({
       where: { mahber_id: mahberId },
     });
-    if (count >= UPLOAD_CONFIG.STORAGE_QUOTA) {
+    if (count + incomingCount > STORAGE_QUOTA) {
       throw new BadRequestException(
-        `Storage quota exceeded: organisation has reached the maximum of ${UPLOAD_CONFIG.STORAGE_QUOTA} photos`,
+        `Storage quota exceeded: organisation has reached the maximum of ${STORAGE_QUOTA} photos`,
       );
     }
   }
 
   /**
-   * Task 14.3: Validate, store file, generate thumbnail, persist metadata.
+   * Task 14.3: Validate, upload to Cloudinary, persist metadata (batch).
    * Validates: Requirements 12.1, 12.2, 12.7
    */
-  async uploadPhoto(
+  async uploadPhotos(
     mahberId: string,
     eventId: string,
     uploaderId: string,
-    file: any,
+    files: any[],
     caption?: string,
   ) {
-    // 14.1 — validate file type
-    if (!UPLOAD_CONFIG.ALLOWED_MIME_TYPES.includes(file.mimetype)) {
-      throw new BadRequestException(
-        'Invalid file type. Only JPEG and PNG images are allowed',
-      );
+    if (!files || files.length === 0) {
+      throw new BadRequestException('No files uploaded');
     }
 
-    // 14.1 — validate file size (multer limit handles this too, but double-check)
-    if (file.size > UPLOAD_CONFIG.MAX_FILE_SIZE) {
-      throw new BadRequestException('File size exceeds the 10MB limit');
+    if (files.length > 10) {
+      throw new BadRequestException('You can upload up to 10 photos at a time');
     }
 
-    // Verify event belongs to mahber
+    for (const file of files) {
+      if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+        throw new BadRequestException('Invalid file type. Only JPEG and PNG images are allowed');
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        throw new BadRequestException('File size exceeds the 10MB limit');
+      }
+      if (!file.buffer) {
+        throw new BadRequestException('File buffer is missing. Upload failed.');
+      }
+    }
+
     const event = await this.prisma.event.findFirst({
       where: { id: eventId, mahber_id: mahberId },
     });
@@ -91,60 +100,69 @@ export class PhotoService {
       throw new NotFoundException(`Event ${eventId} not found`);
     }
 
-    // 14.5 — quota check
-    await this.checkStorageQuota(mahberId);
+    await this.checkStorageQuota(mahberId, files.length);
 
-    // Persist file to disk (multer already wrote it; file.path is the destination)
-    const filePath = file.path;
-
-    // 14.2 — generate thumbnail
-    const ext = path.extname(file.originalname) || '.jpg';
-    const thumbFilename = `${path.basename(filePath, path.extname(filePath))}_thumb${ext}`;
-    const thumbDir = path.join(
-      UPLOAD_CONFIG.THUMBNAIL_DIR,
-      mahberId,
-      eventId,
-    );
-    const thumbnailPath = path.join(thumbDir, thumbFilename);
-
-    let resolvedThumbnailPath: string | null = null;
+    const uploadResults: any[] = [];
     try {
-      await this.generateThumbnail(filePath, thumbnailPath);
-      resolvedThumbnailPath = thumbnailPath;
-    } catch (err) {
-      this.logger.warn(`Thumbnail generation failed for ${filePath}: ${err}`);
+      for (const [index, file] of files.entries()) {
+        const result = await this.uploadBufferToCloudinary(file.buffer, {
+          folder: `events/${mahberId}/${eventId}`,
+          public_id: `${Date.now()}-${Math.round(Math.random() * 1e9)}-${index}`,
+          eager: [
+            {
+              width: 300,
+              height: 300,
+              crop: 'thumb',
+              gravity: 'auto',
+            },
+          ],
+          context: caption ? `caption=${caption}` : undefined,
+          tags: `event_${eventId}`,
+        });
+        uploadResults.push(result);
+      }
+    } catch (error) {
+      // Best-effort cleanup of any uploaded assets if a later upload fails
+      await Promise.all(
+        uploadResults
+          .map((result) => result?.public_id)
+          .filter(Boolean)
+          .map((publicId) => this.cloudinary.uploader.destroy(publicId).catch(() => undefined)),
+      );
+      throw error;
     }
 
-    // 12.2 — store metadata
-    const photo = await this.prisma.eventPhoto.create({
-      data: {
-        event_id: eventId,
-        mahber_id: mahberId,
-        uploader_id: uploaderId,
-        file_path: filePath,
-        thumbnail_path: resolvedThumbnailPath,
-        caption: caption ?? null,
-      },
-    });
-
-    this.logger.log(
-      `Photo uploaded: id=${photo.id} event=${eventId} mahber=${mahberId} uploader=${uploaderId}`,
+    const photos = await Promise.all(
+      uploadResults.map((uploadResult) =>
+        this.prisma.eventPhoto.create({
+          data: {
+            event_id: eventId,
+            mahber_id: mahberId,
+            uploader_id: uploaderId,
+            file_path: uploadResult.secure_url,
+            thumbnail_path: uploadResult.eager?.[0]?.secure_url,
+            caption: caption ?? null,
+            cloudinary_public_id: uploadResult.public_id,
+          },
+        }),
+      ),
     );
 
-    return photo;
+    this.logger.log(
+      `Photos uploaded: count=${photos.length} event=${eventId} mahber=${mahberId} uploader=${uploaderId}`,
+    );
+
+    return {
+      data: photos,
+      meta: { uploaded: photos.length },
+    };
   }
 
   /**
    * Task 14.4: Paginated photo listing with multi-tenancy isolation.
    * Validates: Requirement 12.4
    */
-  async findAll(
-    mahberId: string,
-    eventId: string,
-    page: number,
-    limit: number,
-  ) {
-    // Verify event belongs to mahber
+  async findAll(mahberId: string, eventId: string, page: number, limit: number) {
     const event = await this.prisma.event.findFirst({
       where: { id: eventId, mahber_id: mahberId },
     });
@@ -180,12 +198,7 @@ export class PhotoService {
    * Task 14.4: Delete a photo — only uploader or admin may delete.
    * Validates: Requirement 12.5
    */
-  async deletePhoto(
-    mahberId: string,
-    eventId: string,
-    photoId: string,
-    actorId: string,
-  ) {
+  async deletePhoto(mahberId: string, eventId: string, photoId: string, actorId: string) {
     const photo = await this.prisma.eventPhoto.findFirst({
       where: { id: photoId, event_id: eventId, mahber_id: mahberId },
     });
@@ -194,10 +207,8 @@ export class PhotoService {
       throw new NotFoundException(`Photo ${photoId} not found`);
     }
 
-    // Check if actor is the uploader
     const isUploader = photo.uploader_id === actorId;
 
-    // Check if actor is an admin of this mahber
     const membership = await this.prisma.membership.findFirst({
       where: { member_id: actorId, mahber_id: mahberId, status: 'Active' },
     });
@@ -206,24 +217,18 @@ export class PhotoService {
     const isAdmin = role?.permissions?.includes('manage_members') ?? false;
 
     if (!isUploader && !isAdmin) {
-      throw new ForbiddenException(
-        'Only the photo uploader or an admin can delete this photo',
-      );
+      throw new ForbiddenException('Only the photo uploader or an admin can delete this photo');
+    }
+
+    if (photo.cloudinary_public_id) {
+      try {
+        await this.cloudinary.uploader.destroy(photo.cloudinary_public_id);
+      } catch (err) {
+        this.logger.warn(`Failed to delete from Cloudinary: ${photo.cloudinary_public_id}`);
+      }
     }
 
     await this.prisma.eventPhoto.delete({ where: { id: photoId } });
-
-    // Best-effort cleanup of files
-    try {
-      if (fs.existsSync(photo.file_path)) {
-        fs.unlinkSync(photo.file_path);
-      }
-      if (photo.thumbnail_path && fs.existsSync(photo.thumbnail_path)) {
-        fs.unlinkSync(photo.thumbnail_path);
-      }
-    } catch (err) {
-      this.logger.warn(`File cleanup failed for photo ${photoId}: ${err}`);
-    }
 
     this.logger.log(
       `Photo deleted: id=${photoId} event=${eventId} mahber=${mahberId} actor=${actorId}`,

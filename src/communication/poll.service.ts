@@ -9,13 +9,17 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreatePollDto, PollOptionDto } from './dto/create-poll.dto';
 import { CastVoteDto } from './dto/cast-vote.dto';
 import { Poll, Prisma } from '@prisma/client';
+import { CommunicationGateway } from './communication.gateway';
 
 @Injectable()
 export class PollService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly gateway: CommunicationGateway,
+  ) {}
 
   async create(mahberId: string, actorId: string, dto: CreatePollDto) {
-    return this.prisma.poll.create({
+    const poll = await this.prisma.poll.create({
       data: {
         mahber_id: mahberId,
         question: dto.question,
@@ -26,6 +30,11 @@ export class PollService {
         created_by: actorId,
       },
     });
+
+    // Emit event via WebSocket to the Mahber room
+    this.gateway.server.to(`mahber_${mahberId}`).emit('new_poll', poll);
+
+    return poll;
   }
 
   async findAll(mahberId: string, page: number, limit: number) {
@@ -34,6 +43,7 @@ export class PollService {
     const [data, total] = await this.prisma.$transaction([
       this.prisma.poll.findMany({
         where: { mahber_id: mahberId },
+        include: { votes: true, creator: { select: { id: true, name: true } } },
         orderBy: { created_at: 'desc' },
         skip,
         take: limit,

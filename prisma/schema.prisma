@@ -15,13 +15,17 @@ model User {
   phone      String   @unique // +251XXXXXXXXX format
   password   String // bcrypt hashed
   name       String // Supports Amharic
-  email      String?
-  bio        String? // Supports Amharic
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  email              String?
+  bio                String? // Supports Amharic
+  notification_prefs Json?   // e.g. { "payments": true, "events": true, "announcements": true, "chat": false }
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
 
   memberships   Membership[]
   join_requests JoinRequest[]
+  audit_actions AuditTrail[]
+  polls         Poll[]
+  notifications Notification[]
 
   @@map("users")
 }
@@ -227,6 +231,7 @@ model Attendance {
 }
 
 model EventPhoto {
+  cloudinary_public_id String?
   id             String   @id @default(uuid())
   event_id       String
   mahber_id      String
@@ -306,7 +311,8 @@ model Poll {
   created_by           String
   created_at           DateTime  @default(now())
 
-  votes Vote[]
+  votes   Vote[]
+  creator User   @relation(fields: [created_by], references: [id])
 
   @@index([mahber_id])
   @@map("polls")
@@ -344,6 +350,7 @@ model AuditTrail {
   entity_id   String
   action      String // e.g., 'payment_completed', 'status_transition', 'fine_applied'
   actor_id    String? // optional - system actions may not have an actor
+  actor       User?    @relation(fields: [actor_id], references: [id])
   old_value   Json?
   new_value   Json?
   metadata    Json?
@@ -351,4 +358,29 @@ model AuditTrail {
 
   @@index([mahber_id, entity_type, created_at])
   @@map("audit_trail")
+}
+
+enum NotificationType {
+  info
+  success
+  warning
+  error
+  payment
+  event
+}
+
+model Notification {
+  id         String           @id @default(uuid())
+  user_id    String
+  title      String
+  message    String           @db.Text
+  type       NotificationType @default(info)
+  is_read    Boolean          @default(false)
+  link       String?
+  created_at DateTime         @default(now())
+
+  user       User             @relation(fields: [user_id], references: [id])
+
+  @@index([user_id, created_at])
+  @@map("notifications")
 }

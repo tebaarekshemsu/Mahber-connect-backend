@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEmail } from 'class-validator';
+import { IsString, IsOptional, IsEmail, IsObject } from 'class-validator';
 
 export class UpdateProfileDto {
   @IsOptional()
@@ -12,4 +12,8 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   bio?: string;
+
+  @IsOptional()
+  @IsObject()
+  notification_prefs?: Record<string, boolean>;
 }

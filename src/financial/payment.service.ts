@@ -50,13 +50,38 @@ export class PaymentService {
     const defaultReturnUrl =
       this.config.get<string>('app.returnUrl') ?? 'https://mahberconnect.com/payment/return';
 
+    // Fetch user details if not provided in DTO
+    let email = dto.email;
+    let firstName = dto.first_name;
+    let lastName = dto.last_name;
+
+    if (!email || !firstName || !lastName) {
+      const user = await this.prisma.membership.findFirst({
+        where: { mahber_id: mahberId, member_id: memberId },
+        include: { user: { select: { email: true, name: true } } },
+      });
+
+      if (user?.user) {
+        email = email || user.user.email || `${memberId}@mahberconnect.com`;
+        if (!firstName || !lastName) {
+          const nameParts = (user.user.name || 'Unknown User').split(' ');
+          firstName = firstName || nameParts[0] || 'Unknown';
+          lastName = lastName || nameParts.slice(1).join(' ') || 'User';
+        }
+      } else {
+        email = email || `${memberId}@mahberconnect.com`;
+        firstName = firstName || 'Unknown';
+        lastName = lastName || 'User';
+      }
+    }
+
     const chapaResult = await this.chapa.initializePayment({
       tx_ref,
       amount: dto.amount,
       currency: 'ETB',
-      email: dto.email,
-      first_name: dto.first_name,
-      last_name: dto.last_name,
+      email,
+      first_name: firstName,
+      last_name: lastName,
       callback_url: dto.callback_url ?? defaultCallbackUrl,
       return_url: dto.return_url ?? defaultReturnUrl,
       customization: {

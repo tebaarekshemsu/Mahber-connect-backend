@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
+import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -12,11 +13,30 @@ async function bootstrap() {
   // Security middleware
   app.use(helmet());
 
-  // CORS
+  // CORS - improved handling: use ConfigService, trim origins, handle preflight and credentials
+  const configService = app.get(ConfigService);
+  const allowedOriginsRaw =
+    configService.get<any>('app.allowedOrigins') ?? process.env.ALLOWED_ORIGINS ?? '';
+  const allowedOrigins = Array.isArray(allowedOriginsRaw)
+    ? allowedOriginsRaw.map((o) => String(o).trim()).filter(Boolean)
+    : String(allowedOriginsRaw)
+        .split(',')
+        .map((o) => o.trim())
+        .filter(Boolean);
+
   app.enableCors({
-    origin: process.env.ALLOWED_ORIGINS?.split(',') ?? '*',
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    origin: (
+      origin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void,
+    ) => {
+      // allow non-browser requests (no Origin header)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error('Not allowed by CORS'));
+    },
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept'],
+    credentials: true,
   });
 
   // Global validation pipe

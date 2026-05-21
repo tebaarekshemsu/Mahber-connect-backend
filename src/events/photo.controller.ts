@@ -6,28 +6,37 @@ import {
   Param,
   Post,
   Query,
-  UploadedFile,
+  UploadedFiles,
   UseGuards,
   UseInterceptors,
   Body,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam, ApiQuery, ApiConsumes } from '@nestjs/swagger';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import * as path from 'path';
-import * as fs from 'fs';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiParam,
+  ApiQuery,
+  ApiConsumes,
+} from '@nestjs/swagger';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import * as multer from 'multer';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
-import { PhotoService, UPLOAD_CONFIG } from './photo.service';
+import { PhotoService } from './photo.service';
 import { UploadPhotoDto } from './dto/upload-photo.dto';
+
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png'];
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 function imageFileFilter(
   _req: any,
   file: any,
   cb: (error: Error | null, acceptFile: boolean) => void,
 ) {
-  if (UPLOAD_CONFIG.ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+  if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
     cb(null, true);
   } else {
     cb(new BadRequestException('Only JPEG and PNG images are allowed'), false);
@@ -39,53 +48,34 @@ function imageFileFilter(
 @UseGuards(JwtAuthGuard)
 @Controller('mahbers/:id/events/:eventId/photos')
 export class PhotoController {
-  constructor(private readonly photoService: PhotoService) { }
+  constructor(private readonly photoService: PhotoService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Upload a photo to event gallery' })
+  @ApiOperation({ summary: 'Upload photos to event gallery (batch)' })
   @ApiConsumes('multipart/form-data')
   @ApiParam({ name: 'id', description: 'Mahber ID' })
   @ApiParam({ name: 'eventId', description: 'Event ID' })
-  @ApiResponse({ status: 201, description: 'Photo uploaded successfully' })
+  @ApiResponse({ status: 201, description: 'Photos uploaded successfully' })
   @ApiResponse({ status: 400, description: 'Invalid file or file too large' })
   @UseInterceptors(
-    FileInterceptor('file', {
-      storage: diskStorage({
-        destination: (req: any, _file: any, cb: any) => {
-          const mahberId = req.params?.id ?? 'unknown';
-          const eventId = req.params?.eventId ?? 'unknown';
-          const dir = path.join(UPLOAD_CONFIG.UPLOAD_DIR, mahberId, eventId);
-          fs.mkdirSync(dir, { recursive: true });
-          cb(null, dir);
-        },
-        filename: (_req: any, file: any, cb: any) => {
-          const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-          const ext = path.extname(file.originalname);
-          cb(null, `${unique}${ext}`);
-        },
-      }),
-      limits: { fileSize: UPLOAD_CONFIG.MAX_FILE_SIZE },
+    FilesInterceptor('files', 10, {
+      storage: multer.memoryStorage(),
+      limits: { fileSize: MAX_FILE_SIZE, files: 10 },
       fileFilter: imageFileFilter,
     }),
   )
-  async uploadPhoto(
+  async uploadPhotos(
     @Param('id') mahberId: string,
     @Param('eventId') eventId: string,
     @CurrentUser() user: JwtPayload,
-    @UploadedFile() file: any,
+    @UploadedFiles() files: any[],
     @Body() dto: UploadPhotoDto,
   ) {
-    if (!file) {
-      throw new BadRequestException('No file uploaded');
+    if (!files || files.length === 0) {
+      throw new BadRequestException('No files uploaded');
     }
 
-    return this.photoService.uploadPhoto(
-      mahberId,
-      eventId,
-      user.sub,
-      file,
-      dto.caption,
-    );
+    return this.photoService.uploadPhotos(mahberId, eventId, user.sub, files, dto.caption);
   }
 
   @Get()

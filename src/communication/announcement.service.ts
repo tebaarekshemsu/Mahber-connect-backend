@@ -6,12 +6,19 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAnnouncementDto } from './dto/create-announcement.dto';
+import { NotificationService } from './notification.service';
+import { NotificationType } from '@prisma/client';
+import { CommunicationGateway } from './communication.gateway';
 
 @Injectable()
 export class AnnouncementService {
   private readonly logger = new Logger(AnnouncementService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService,
+    private readonly gateway: CommunicationGateway,
+  ) {}
 
   async create(
     mahberId: string,
@@ -32,13 +39,18 @@ export class AnnouncementService {
       },
     });
 
-    // FCM notification stub — only for immediately published announcements
     if (!isScheduled) {
-      this.logger.log(
-        `[NOTIFICATION STUB] Announcement "${announcement.title}" (id=${announcement.id}) ` +
-          `published in mahber ${mahberId}. Priority: ${announcement.priority}. ` +
-          `Target: ${announcement.target_audience ?? 'all members'}.`,
+      await this.notificationService.sendToMahberMembers(
+        mahberId,
+        `New Announcement: ${announcement.title}`,
+        announcement.content,
+        { type: 'ANNOUNCEMENT', id: announcement.id },
+        NotificationType.info,
+        `/mahbers/${mahberId}`
       );
+      
+      // Emit event via WebSocket to the Mahber room
+      this.gateway.server.to(`mahber_${mahberId}`).emit('new_announcement', announcement);
     }
 
     return announcement;
