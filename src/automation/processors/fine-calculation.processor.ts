@@ -41,6 +41,8 @@ export class FineCalculationProcessor extends BaseProcessor<FineCalculationJobDa
       contribution_amount?: number;
       penalty_rate?: number;
       penalty_mode?: 'percentage' | 'fixed';
+      penalty_interval?: string;
+      max_fine_total?: number;
     } | null;
 
     const penaltyRate = config?.penalty_rate ?? 0;
@@ -53,8 +55,22 @@ export class FineCalculationProcessor extends BaseProcessor<FineCalculationJobDa
     // Find active members who have not made a contribution payment since the overdue date
     const activeMembers = await this.prisma.membership.findMany({
       where: { mahber_id: mahberId, status: MembershipStatus.Active },
-      select: { member_id: true },
+      select: { id: true, member_id: true },
     });
+
+    const parseIntervalToMs = (interval?: string): number => {
+      if (!interval) return 30 * 24 * 60 * 60 * 1000; // default 30 days
+      const match = interval.match(/^(\d+)([dhm])$/);
+      if (!match) return 30 * 24 * 60 * 60 * 1000;
+      const value = parseInt(match[1], 10);
+      const unit = match[2];
+      switch (unit) {
+        case 'd': return value * 24 * 60 * 60 * 1000;
+        case 'h': return value * 60 * 60 * 1000;
+        case 'm': return value * 60 * 1000;
+        default: return value * 24 * 60 * 60 * 1000;
+      }
+    };
 
     for (const membership of activeMembers) {
       const recentContribution = await this.prisma.ledgerEntry.findFirst({
@@ -75,9 +91,14 @@ export class FineCalculationProcessor extends BaseProcessor<FineCalculationJobDa
             violation_type: ViolationType.MISSED_PAYMENT,
             created_at: { gte: overdueDate },
           },
+          orderBy: { created_at: 'desc' },
         });
 
-        if (!existingFine) {
+        const intervalMs = parseIntervalToMs(config?.penalty_interval);
+        const shouldApplyFine = !existingFine || 
+          (new Date().getTime() - new Date(existingFine.created_at).getTime() >= intervalMs);
+
+        if (shouldApplyFine) {
           await this.fineService.applyFine(
             mahberId,
             membership.member_id,
@@ -93,6 +114,29 @@ export class FineCalculationProcessor extends BaseProcessor<FineCalculationJobDa
             'Fine Applied',
             `A fine has been applied to your account for a missed contribution payment.`,
             { mahberId, type: 'FINE_APPLIED' },
+          );
+        }
+      }
+
+      // Ban Logic
+      const maxFineTotal = config?.max_fine_total ?? 0;
+      if (maxFineTotal > 0) {
+        const exceeds = await this.fineService.hasUnpaidFinesExceedingThreshold(
+          mahberId,
+          membership.member_id,
+          maxFineTotal,
+        );
+        if (exceeds) {
+          await this.prisma.membership.update({
+            where: { id: membership.id },
+            data: { status: MembershipStatus.Banned },
+          });
+
+          await this.notificationService.sendToUser(
+            membership.member_id,
+            'Membership Banned',
+            `Your membership has been banned due to exceeding the maximum allowed unpaid fines.`,
+            { mahberId, type: 'MEMBERSHIP_BANNED' },
           );
         }
       }

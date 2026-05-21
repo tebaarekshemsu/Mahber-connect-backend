@@ -11,10 +11,20 @@ import { FineController } from './fine.controller';
 import { LotteryService } from './lottery.service';
 import { LotteryController } from './lottery.controller';
 import { AuditModule } from '../audit/audit.module';
+import { MahberFinanceController } from './mahber-finance.controller';
+import { PaymentCallbackController } from './payment-callback.controller';
 
 @Module({
   imports: [AuditModule],
-  controllers: [LedgerController, PaymentController, WebhookController, FineController, LotteryController],
+  controllers: [
+    LedgerController,
+    PaymentController,
+    WebhookController,
+    FineController,
+    LotteryController,
+    MahberFinanceController,
+    PaymentCallbackController,
+  ],
   providers: [LedgerService, PaymentService, RoleGuard, ChapaService, FineService, LotteryService],
   exports: [LedgerService, ChapaService, PaymentService, FineService, LotteryService],
 })

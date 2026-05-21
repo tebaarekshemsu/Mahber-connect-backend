@@ -13,8 +13,9 @@ export const VALID_TRANSITIONS: Record<MembershipStatus, MembershipStatus[]> = {
     MembershipStatus.Active,
     MembershipStatus.Invalidated,
   ],
-  [MembershipStatus.Active]: [MembershipStatus.Suspended],
-  [MembershipStatus.Suspended]: [MembershipStatus.Active],
+  [MembershipStatus.Active]: [MembershipStatus.Suspended, MembershipStatus.Banned],
+  [MembershipStatus.Suspended]: [MembershipStatus.Active, MembershipStatus.Banned],
+  [MembershipStatus.Banned]: [MembershipStatus.Active],
   [MembershipStatus.Rejected]: [],
   [MembershipStatus.Invalidated]: [],
 };

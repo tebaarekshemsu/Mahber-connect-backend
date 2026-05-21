@@ -96,6 +96,7 @@ export class PaymentReminderProcessor extends BaseProcessor<PaymentReminderJobDa
           amount: String(contributionAmount),
           dueDate: nextPaymentDate.toISOString(),
           type: 'PAYMENT_REMINDER',
+          payUrl: `/mahbers/${mahberId}/pay`,
         },
       );
     }

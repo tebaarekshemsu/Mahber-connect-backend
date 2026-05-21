@@ -3,6 +3,7 @@ import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { MembershipStatus } from '@prisma/client';
 import { ChatService } from './chat.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationService } from './notification.service';
 
 const mockPrisma = {
   membership: {
@@ -15,7 +16,14 @@ const mockPrisma = {
     findMany: jest.fn(),
     count: jest.fn(),
   },
+  user: {
+    findUnique: jest.fn(),
+  },
   $transaction: jest.fn(),
+};
+
+const mockNotificationService = {
+  sendToMahberMembers: jest.fn(),
 };
 
 describe('ChatService', () => {
@@ -26,6 +34,7 @@ describe('ChatService', () => {
       providers: [
         ChatService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: NotificationService, useValue: mockNotificationService },
       ],
     }).compile();
 

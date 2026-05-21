@@ -56,6 +56,8 @@ model Membership {
   has_won_current_cycle Boolean          @default(false)
   approval_date         DateTime?
   activation_date       DateTime?
+  joined_at             DateTime?
+  next_payment_due      DateTime?
   created_at            DateTime         @default(now())
   updated_at            DateTime         @updatedAt
 
@@ -80,6 +82,7 @@ enum MembershipStatus {
   Suspended
   Rejected
   Invalidated
+  Banned
 }
 
 model JoinRequest {
@@ -122,6 +125,18 @@ model Payment {
 
   @@index([mahber_id, member_id, status])
   @@map("payments")
+}
+
+model PendingPayment {
+  id         String   @id @default(uuid())
+  mahber_id  String
+  member_id  String
+  amount     Decimal  @db.Decimal(10, 2)
+  status     String   @default("pending") // "pending", "completed", "failed"
+  created_at DateTime @default(now())
+
+  @@index([mahber_id, member_id, status])
+  @@map("pending_payments")
 }
 
 enum PaymentType {

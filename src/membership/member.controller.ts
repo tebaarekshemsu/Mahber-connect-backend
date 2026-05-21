@@ -63,4 +63,13 @@ export class MemberController {
   ) {
     return this.memberService.reinstate(mahberId, memberId, user.sub);
   }
+
+  @Post(':memberId/unban')
+  unban(
+    @Param('id') mahberId: string,
+    @Param('memberId') memberId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.memberService.unban(mahberId, memberId, user.sub);
+  }
 }

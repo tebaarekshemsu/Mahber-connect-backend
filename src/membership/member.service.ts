@@ -59,7 +59,7 @@ export class MemberService {
     await this.assertAdmin(mahberId, actorId);
 
     const membership = await this.prisma.membership.findFirst({
-      where: { id: memberId, mahber_id: mahberId },
+      where: { member_id: memberId, mahber_id: mahberId },
     });
 
     if (!membership) {
@@ -67,7 +67,7 @@ export class MemberService {
     }
 
     return this.stateMachine.transitionState(
-      memberId,
+      membership.id,
       MembershipStatus.Suspended,
       actorId,
       'Suspended by admin',
@@ -79,7 +79,7 @@ export class MemberService {
     await this.assertAdmin(mahberId, actorId);
 
     const membership = await this.prisma.membership.findFirst({
-      where: { id: memberId, mahber_id: mahberId },
+      where: { member_id: memberId, mahber_id: mahberId },
     });
 
     if (!membership) {
@@ -87,13 +87,34 @@ export class MemberService {
     }
 
     return this.stateMachine.transitionState(
-      memberId,
+      membership.id,
       MembershipStatus.Active,
       actorId,
       'Reinstated by admin',
       this.prisma as any,
     );
   }
+
+  async unban(mahberId: string, memberId: string, actorId: string) {
+    await this.assertAdmin(mahberId, actorId);
+
+    const membership = await this.prisma.membership.findFirst({
+      where: { member_id: memberId, mahber_id: mahberId },
+    });
+
+    if (!membership) {
+      throw new NotFoundException('Member not found');
+    }
+
+    return this.stateMachine.transitionState(
+      membership.id,
+      MembershipStatus.Active,
+      actorId,
+      'Unbanned by admin',
+      this.prisma as any,
+    );
+  }
+
 
   private async assertMember(mahberId: string, userId: string) {
     const membership = await this.prisma.membership.findFirst({

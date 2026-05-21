@@ -31,7 +31,19 @@ async function bootstrap() {
     ) => {
       // allow non-browser requests (no Origin header)
       if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
+      
+      // Always allow localhost and 127.0.0.1 origins in development
+      const isDevelopment = process.env.NODE_ENV === 'development';
+      const isLocalhost =
+        origin.startsWith('http://localhost:') ||
+        origin.startsWith('https://localhost:') ||
+        origin.startsWith('http://127.0.0.1:') ||
+        origin === 'http://localhost' ||
+        origin === 'http://127.0.0.1';
+
+      if ((isDevelopment && isLocalhost) || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
       return callback(new Error('Not allowed by CORS'));
     },
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
