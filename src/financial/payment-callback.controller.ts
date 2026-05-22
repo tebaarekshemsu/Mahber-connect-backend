@@ -78,6 +78,18 @@ export class PaymentCallbackController {
 
     if (isSuccess) {
       await this.prisma.$transaction(async (tx) => {
+        const membership = await tx.membership.findFirstOrThrow({
+          where: {
+            mahber_id: pendingPayment.mahber_id,
+            member_id: pendingPayment.member_id,
+          },
+        });
+
+        const paymentType =
+          membership.status === MembershipStatus.Payment_Required
+            ? PaymentType.JoinFee
+            : PaymentType.Contribution;
+
         // Update PendingPayment status
         await tx.pendingPayment.update({
           where: { id: pendingPayment.id },
@@ -90,7 +102,7 @@ export class PaymentCallbackController {
             mahber_id: pendingPayment.mahber_id,
             member_id: pendingPayment.member_id,
             amount: pendingPayment.amount,
-            payment_type: PaymentType.Contribution, // as requested
+            payment_type: paymentType,
             status: PaymentStatus.Completed,
             tx_ref: pendingPayment.id,
             completed_at: new Date(),
@@ -104,7 +116,7 @@ export class PaymentCallbackController {
             member_id: pendingPayment.member_id,
             transaction_type: TransactionType.Contribution,
             amount: pendingPayment.amount,
-            description: `Contribution payment via Chapa callback (tx_ref: ${pendingPayment.id})`,
+            description: `${paymentType} payment via Chapa callback (tx_ref: ${pendingPayment.id})`,
             payment_id: payment.id,
           },
           tx,
@@ -119,14 +131,6 @@ export class PaymentCallbackController {
         const config = mahber.configuration as {
           payment_frequency?: string;
         } | null;
-
-        // Fetch Membership to see current next_payment_due
-        const membership = await tx.membership.findFirstOrThrow({
-          where: {
-            mahber_id: pendingPayment.mahber_id,
-            member_id: pendingPayment.member_id,
-          },
-        });
 
         const currentDueDate = membership.next_payment_due ?? new Date();
         const nextPaymentDue = addFrequency(currentDueDate, config?.payment_frequency);

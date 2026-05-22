@@ -1,17 +1,17 @@
 export function addFrequency(date: Date, frequency?: string): Date {
   const result = new Date(date);
-  const freq = frequency || 'Monthly';
+  const freq = (frequency || 'Monthly').toLowerCase();
   switch (freq) {
-    case 'Daily':
+    case 'daily':
       result.setDate(result.getDate() + 1);
       break;
-    case 'Weekly':
+    case 'weekly':
       result.setDate(result.getDate() + 7);
       break;
-    case 'Quarterly':
+    case 'quarterly':
       result.setMonth(result.getMonth() + 3);
       break;
-    case 'Monthly':
+    case 'monthly':
     default:
       result.setMonth(result.getMonth() + 1);
       break;

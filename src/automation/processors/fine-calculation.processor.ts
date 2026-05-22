@@ -145,12 +145,14 @@ export class FineCalculationProcessor extends BaseProcessor<FineCalculationJobDa
 
   private getOverdueDate(paymentFrequency: string): Date {
     const now = new Date();
-    switch (paymentFrequency) {
-      case 'Weekly':
+    switch ((paymentFrequency || 'Monthly').toLowerCase()) {
+      case 'daily':
+        return new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      case 'weekly':
         return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      case 'Quarterly':
+      case 'quarterly':
         return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-      case 'Monthly':
+      case 'monthly':
       default:
         return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     }

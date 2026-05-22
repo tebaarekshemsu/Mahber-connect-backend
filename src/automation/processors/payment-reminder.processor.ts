@@ -43,29 +43,29 @@ export class PaymentReminderProcessor extends BaseProcessor<PaymentReminderJobDa
     } | null;
 
     const contributionAmount = config?.contribution_amount ?? 0;
-    const nextPaymentDateStr = config?.next_payment_date;
-
-    if (!nextPaymentDateStr) {
-      return;
-    }
-
-    const nextPaymentDate = new Date(nextPaymentDateStr);
-    const now = new Date();
-
-    const daysUntilDue = Math.ceil(
-      (nextPaymentDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
-    );
-
-    if (!REMINDER_DAYS.includes(daysUntilDue)) {
-      return;
-    }
-
     const activeMembers = await this.prisma.membership.findMany({
       where: { mahber_id: mahberId, status: MembershipStatus.Active },
-      select: { member_id: true },
+      select: { member_id: true, next_payment_due: true },
     });
 
     for (const membership of activeMembers) {
+      const nextPaymentDateStr = membership.next_payment_due?.toISOString() ?? config?.next_payment_date;
+
+      if (!nextPaymentDateStr) {
+        continue;
+      }
+
+      const nextPaymentDate = new Date(nextPaymentDateStr);
+      const now = new Date();
+
+      const daysUntilDue = Math.ceil(
+        (nextPaymentDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+      );
+
+      if (!REMINDER_DAYS.includes(daysUntilDue)) {
+        continue;
+      }
+
       // Skip if payment already completed for this period
       const completedPayment = await this.prisma.payment.findFirst({
         where: {
@@ -101,21 +101,21 @@ export class PaymentReminderProcessor extends BaseProcessor<PaymentReminderJobDa
       );
     }
 
-    this.logger.log(
-      `Payment reminders sent for mahber=${mahberId} (${daysUntilDue} days before due date)`,
-    );
   }
 
   private getPeriodStart(dueDate: Date, paymentFrequency?: string): Date {
     const start = new Date(dueDate);
-    switch (paymentFrequency) {
-      case 'Weekly':
+    switch ((paymentFrequency || 'Monthly').toLowerCase()) {
+      case 'daily':
+        start.setDate(start.getDate() - 1);
+        break;
+      case 'weekly':
         start.setDate(start.getDate() - 7);
         break;
-      case 'Quarterly':
+      case 'quarterly':
         start.setDate(start.getDate() - 90);
         break;
-      case 'Monthly':
+      case 'monthly':
       default:
         start.setMonth(start.getMonth() - 1);
         break;

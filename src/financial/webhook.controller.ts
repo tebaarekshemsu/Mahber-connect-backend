@@ -1,6 +1,8 @@
 import {
   Controller,
+  Get,
   Post,
+  Param,
   Headers,
   Req,
   HttpCode,
@@ -23,6 +25,12 @@ export class WebhookController {
     private readonly paymentService: PaymentService,
     private readonly config: ConfigService,
   ) {}
+
+  @Get('chapa/verify/:tx_ref')
+  @ApiOperation({ summary: 'Verify a Chapa payment by transaction reference' })
+  async verifyPayment(@Param('tx_ref') txRef: string) {
+    return this.paymentService.findByTxRef(txRef);
+  }
 
   @Post('chapa')
   @HttpCode(HttpStatus.OK)

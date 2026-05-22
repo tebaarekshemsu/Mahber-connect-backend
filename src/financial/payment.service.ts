@@ -305,6 +305,18 @@ export class PaymentService {
     return payment;
   }
 
+  async findByTxRef(txRef: string) {
+    const payment = await this.prisma.payment.findUnique({
+      where: { tx_ref: txRef },
+    });
+
+    if (!payment) {
+      throw new NotFoundException('Payment not found');
+    }
+
+    return payment;
+  }
+
   // ─── Task 8.6 ────────────────────────────────────────────────────────────────
 
   async retryPayment(mahberId: string, paymentId: string, memberId: string) {
