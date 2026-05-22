@@ -60,7 +60,7 @@ export class ChapaService {
         Authorization: `Bearer ${secretKey}`,
         'Content-Type': 'application/json',
       },
-      timeout: 10_000,
+      timeout: 30_000, // increased timeout to handle slower network
     });
   }
 
@@ -101,9 +101,10 @@ export class ChapaService {
     }
 
     try {
+      this.logger.debug('Initializing payment with params', params);
       const payload = {
         tx_ref: params.tx_ref,
-        amount: params.amount.toString(),
+        amount: params.amount,
         currency: params.currency,
         email: params.email,
         first_name: params.first_name,
@@ -111,7 +112,7 @@ export class ChapaService {
         callback_url: params.callback_url,
         return_url: params.return_url,
         customization: params.customization,
-        meta: {
+        metadata: {
           mahber_id: params.metadata.mahber_id,
           member_id: params.metadata.member_id,
           payment_type: params.metadata.payment_type,
@@ -124,6 +125,7 @@ export class ChapaService {
         message: string;
         data: { checkout_url: string };
       }>('/transaction/initialize', payload);
+      this.logger.debug('Chapa initialize response', response.data);
 
       this.recordSuccess();
       this.logger.log(`Payment initialized: tx_ref=${params.tx_ref}`);
@@ -133,14 +135,21 @@ export class ChapaService {
         tx_ref: params.tx_ref,
       };
     } catch (error) {
-      this.recordFailure();
-      const msg = error instanceof Error ? error.message : String(error);
-      this.logger.error(
-        `Failed to initialize payment tx_ref=${params.tx_ref}: ${msg}`,
-      );
-      throw new ServiceUnavailableException(
-        'Payment service is currently unavailable. Please try again later.',
-      );
+        this.recordFailure();
+        // Log detailed error info from Chapa if available
+        let detailedMsg: string;
+        const errAny = error as any;
+        if (errAny?.response?.data) {
+          detailedMsg = JSON.stringify(errAny.response.data);
+        } else if (error instanceof Error) {
+          detailedMsg = error.message;
+        } else {
+          detailedMsg = String(error);
+        }
+        this.logger.error(`Failed to initialize payment tx_ref=${params.tx_ref}: ${detailedMsg}`);
+        throw new ServiceUnavailableException(
+          'Payment service is currently unavailable. Please try again later.',
+        );
     }
   }
 

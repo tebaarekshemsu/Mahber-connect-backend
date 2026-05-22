@@ -43,7 +43,7 @@ export class PaymentService {
 
     const timestamp = Date.now();
     const random = crypto.randomBytes(4).toString('hex');
-    const tx_ref = `mahber_${mahberId}_${memberId}_${timestamp}_${random}`;
+    const tx_ref = `mah_${mahberId.slice(0,8)}_${memberId.slice(0,8)}_${timestamp}_${random}`;
 
     const defaultCallbackUrl =
       this.config.get<string>('app.callbackUrl') ?? 'https://mahberconnect.com/payment/callback';
@@ -62,30 +62,32 @@ export class PaymentService {
       });
 
       if (user?.user) {
-        email = email || user.user.email || `${memberId}@mahberconnect.com`;
+        email = email || user?.user?.email || 'tebarek29@gmain.com';
         if (!firstName || !lastName) {
           const nameParts = (user.user.name || 'Unknown User').split(' ');
           firstName = firstName || nameParts[0] || 'Unknown';
           lastName = lastName || nameParts.slice(1).join(' ') || 'User';
         }
       } else {
-        email = email || `${memberId}@mahberconnect.com`;
+        email = email || `${memberId.slice(0,8)}@mah.co`;
         firstName = firstName || 'Unknown';
         lastName = lastName || 'User';
       }
     }
 
+    const sanitizedEmail = email && email.length > 50 ? email.trim().slice(0, 50) : email.trim();
+
     const chapaResult = await this.chapa.initializePayment({
       tx_ref,
       amount: dto.amount,
       currency: 'ETB',
-      email,
+      email: sanitizedEmail,
       first_name: firstName,
       last_name: lastName,
       callback_url: dto.callback_url ?? defaultCallbackUrl,
       return_url: dto.return_url ?? defaultReturnUrl,
       customization: {
-        title: 'MahberConnect Payment',
+        title: 'Mahber Pay',
         description: `${dto.payment_type} payment`,
       },
       metadata: {
