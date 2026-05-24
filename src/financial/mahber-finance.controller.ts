@@ -98,10 +98,10 @@ export class MahberFinanceController {
       // Call Chapa to initialize payment
       const callbackUrl =
         this.config.get<string>('app.callbackUrl') ??
-        'https://mahberconnect.com/payments/chapa/callback';
+        'https://heath-watts-todd-stones.trycloudflare.com/payments/chapa/callback';
       const returnUrl =
         this.config.get<string>('app.returnUrl') ??
-        'https://mahberconnect.com/payment/return';
+        'https://heath-watts-todd-stones.trycloudflare.com/return';
 
       const chapaResult = await this.chapa.initializePayment({
         tx_ref: pendingPayment.id,
@@ -240,10 +240,10 @@ export class MahberFinanceController {
     // Call Chapa to initialize payment
     const callbackUrl =
       this.config.get<string>('app.callbackUrl') ??
-      'https://mahberconnect.com/payments/chapa/callback';
+      'https://heath-watts-todd-stones.trycloudflare.com/payments/chapa/callback';
     const returnUrl =
       this.config.get<string>('app.returnUrl') ??
-      'https://mahberconnect.com/payment/return';
+      'https://heath-watts-todd-stones.trycloudflare.com/payment/return';
 
     const chapaResult = await this.chapa.initializePayment({
       tx_ref: pendingPayment.id,

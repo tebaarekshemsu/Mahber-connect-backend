@@ -4,6 +4,11 @@ export const appConfig = registerAs('app', () => ({
   port: parseInt(process.env.PORT || '3000', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
   allowedOrigins: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
+  url: process.env.APP_URL || 'http://localhost:3000',
+  callbackUrl:
+    process.env.APP_CALLBACK_URL || `${process.env.APP_URL || 'http://localhost:3000'}/payments/chapa/callback`,
+  returnUrl:
+    process.env.APP_RETURN_URL || `${process.env.APP_URL || 'http://localhost:3000'}/payment/callback`,
 }));
 
 export const databaseConfig = registerAs('database', () => ({
@@ -36,6 +41,9 @@ export interface AppConfig {
   port: number;
   nodeEnv: string;
   allowedOrigins: string[];
+  url: string;
+  callbackUrl: string;
+  returnUrl: string;
 }
 
 export interface DatabaseConfig {
