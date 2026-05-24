@@ -607,6 +607,10 @@ export class PaymentService {
     page: number = 1,
     limit: number = 20,
     status?: PaymentStatus,
+    type?: PaymentType,
+    search?: string,
+    sort: string = 'date',
+    order: 'asc' | 'desc' = 'desc',
     startDate?: Date,
     endDate?: Date,
   ) {
@@ -629,6 +633,16 @@ export class PaymentService {
 
     if (status) where.status = status;
 
+    if (type && Object.values(PaymentType).includes(type)) {
+      where.payment_type = type;
+    }
+
+    if (search) {
+      where.OR = [
+        { tx_ref: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
     if (startDate || endDate) {
       where.created_at = {};
       if (startDate) (where.created_at as Prisma.DateTimeFilter).gte = startDate;
@@ -637,10 +651,17 @@ export class PaymentService {
 
     const skip = (page - 1) * limit;
 
+    const orderBy: Prisma.PaymentOrderByWithRelationInput =
+      sort === 'amount'
+        ? { amount: order }
+        : sort === 'status'
+          ? { status: order }
+          : { created_at: order };
+
     const [data, total] = await Promise.all([
       this.prisma.payment.findMany({
         where,
-        orderBy: { created_at: 'desc' },
+        orderBy,
         skip,
         take: limit,
       }),

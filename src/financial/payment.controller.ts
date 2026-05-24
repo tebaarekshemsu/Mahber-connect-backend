@@ -13,7 +13,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { PaymentService } from './payment.service';
 import { InitiatePaymentDto } from './dto/initiate-payment.dto';
-import { PaymentStatus } from '@prisma/client';
+import { PaymentStatus, PaymentType } from '@prisma/client';
 
 @ApiTags('Payments')
 @ApiBearerAuth()
@@ -49,6 +49,10 @@ export class PaymentController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('status') status?: PaymentStatus,
+    @Query('type') type?: PaymentType,
+    @Query('search') search?: string,
+    @Query('sort') sort?: string,
+    @Query('order') order?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ) {
@@ -58,6 +62,10 @@ export class PaymentController {
       page ? parseInt(page, 10) : 1,
       limit ? parseInt(limit, 10) : 20,
       status,
+      type,
+      search,
+      sort || 'date',
+      (order || 'desc') as 'asc' | 'desc',
       startDate ? new Date(startDate) : undefined,
       endDate ? new Date(endDate) : undefined,
     );

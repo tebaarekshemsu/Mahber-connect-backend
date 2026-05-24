@@ -8,6 +8,8 @@ import { RoleGuard } from '../membership/guards/role.guard';
 import { ChapaService } from './chapa.service';
 import { FineService } from './fine.service';
 import { FineController } from './fine.controller';
+import { ExpenseService } from './expense.service';
+import { ExpenseController } from './expense.controller';
 import { LotteryService } from './lottery.service';
 import { LotteryController } from './lottery.controller';
 import { AuditModule } from '../audit/audit.module';
@@ -22,12 +24,13 @@ import { PaymentBrowserCallbackController } from './payment-browser-callback.con
     PaymentController,
     WebhookController,
     FineController,
+    ExpenseController,
     LotteryController,
     MahberFinanceController,
     PaymentCallbackController,
     PaymentBrowserCallbackController,
   ],
-  providers: [LedgerService, PaymentService, RoleGuard, ChapaService, FineService, LotteryService],
-  exports: [LedgerService, ChapaService, PaymentService, FineService, LotteryService],
+  providers: [LedgerService, PaymentService, RoleGuard, ChapaService, FineService, ExpenseService, LotteryService],
+  exports: [LedgerService, ChapaService, PaymentService, FineService, ExpenseService, LotteryService],
 })
 export class FinancialModule {}

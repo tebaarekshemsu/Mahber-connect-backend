@@ -24,6 +24,9 @@ export class AuditController {
       query.limit,
       query.entity_type,
       query.actor_id,
+      query.search,
+      (query.sort || 'date') as 'date' | 'entity_type' | 'action',
+      (query.order || 'desc') as 'asc' | 'desc',
       query.start_date ? new Date(query.start_date) : undefined,
       query.end_date ? new Date(query.end_date) : undefined,
     );

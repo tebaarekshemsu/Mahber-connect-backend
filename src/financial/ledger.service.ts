@@ -11,6 +11,7 @@ export interface CreateLedgerEntryData {
   payment_id?: string;
   fine_id?: string;
   lottery_id?: string;
+  expense_id?: string;
 }
 
 @Injectable()
@@ -44,6 +45,7 @@ export class LedgerService {
         payment_id: data.payment_id ?? null,
         fine_id: data.fine_id ?? null,
         lottery_id: data.lottery_id ?? null,
+        expense_id: data.expense_id ?? null,
       },
     });
   }

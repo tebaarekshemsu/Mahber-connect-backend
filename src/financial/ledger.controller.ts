@@ -93,6 +93,7 @@ export class LedgerController {
 
     const totalContributions = sumByType(TransactionType.Contribution);
     const totalFines = sumByType(TransactionType.Fine);
+    const totalExpenses = sumByType(TransactionType.Expense);
     const equbPayouts = parseFloat(sumByType(TransactionType.Equb_Payout));
     const iddirPayouts = parseFloat(sumByType(TransactionType.Iddir_Payout));
     const refunds = parseFloat(sumByType(TransactionType.Refund));
@@ -101,12 +102,14 @@ export class LedgerController {
     const netBalance = (
       parseFloat(totalContributions) +
       parseFloat(totalFines) -
-      parseFloat(totalPayouts)
+      parseFloat(totalPayouts) +
+      parseFloat(totalExpenses)
     ).toString();
 
     return {
       totalContributions,
       totalFines,
+      totalExpenses,
       totalPayouts,
       netBalance,
     };

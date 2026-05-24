@@ -48,6 +48,9 @@ export class AuditService {
     limit: number = 20,
     entityType?: string,
     actorId?: string,
+    search?: string,
+    sort: 'date' | 'entity_type' | 'action' = 'date',
+    order: 'asc' | 'desc' = 'desc',
     startDate?: Date,
     endDate?: Date,
   ) {
@@ -55,6 +58,15 @@ export class AuditService {
 
     if (entityType) where.entity_type = entityType;
     if (actorId) where.actor_id = actorId;
+
+    if (search) {
+      where.OR = [
+        { entity_type: { contains: search, mode: 'insensitive' } },
+        { action: { contains: search, mode: 'insensitive' } },
+        { entity_id: { contains: search, mode: 'insensitive' } },
+        { actor: { name: { contains: search, mode: 'insensitive' } } },
+      ];
+    }
 
     if (startDate || endDate) {
       where.created_at = {};
@@ -64,6 +76,13 @@ export class AuditService {
 
     const skip = (page - 1) * limit;
 
+    const orderBy: Prisma.AuditTrailOrderByWithRelationInput =
+      sort === 'entity_type'
+        ? { entity_type: order }
+        : sort === 'action'
+          ? { action: order }
+          : { created_at: order };
+
     const [data, total] = await Promise.all([
       this.prisma.auditTrail.findMany({
         where,
@@ -72,7 +91,7 @@ export class AuditService {
             select: { id: true, name: true }
           }
         },
-        orderBy: { created_at: 'desc' },
+        orderBy,
         skip,
         take: limit,
       }),
