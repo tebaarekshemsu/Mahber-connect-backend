@@ -5,10 +5,11 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { MembershipStatus, ViolationType } from '@prisma/client';
+import { MembershipStatus, TransactionType, ViolationType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { QrService } from './qr.service';
 import { FineService } from '../financial/fine.service';
+import * as PDFDocument from 'pdfkit';
 
 @Injectable()
 export class AttendanceService {
@@ -219,6 +220,209 @@ export class AttendanceService {
    * Check if a member already has an attendance fine for a specific event
    * by inspecting ledger entry descriptions.
    */
+  async getAnalytics(mahberId: string, eventId: string) {
+    const event = await this.prisma.event.findFirst({
+      where: { id: eventId, mahber_id: mahberId },
+    });
+
+    if (!event) {
+      throw new NotFoundException(`Event ${eventId} not found`);
+    }
+
+    const [activeMembers, attendanceRecords] = await Promise.all([
+      this.prisma.membership.count({
+        where: { mahber_id: mahberId, status: MembershipStatus.Active },
+      }),
+      this.prisma.attendance.findMany({
+        where: { event_id: eventId, mahber_id: mahberId },
+      }),
+    ]);
+
+    const attended = attendanceRecords.length;
+    const absent = activeMembers - attended;
+    const percentage = activeMembers > 0 ? Math.round((attended / activeMembers) * 100) : 0;
+
+    return {
+      event_id: eventId,
+      total_members: activeMembers,
+      attended,
+      absent,
+      attendance_percentage: percentage,
+      is_mandatory: event.is_mandatory,
+      is_cancelled: event.is_cancelled,
+    };
+  }
+
+  async getMahberTrends(mahberId: string, months: number = 6) {
+    const startDate = new Date();
+    startDate.setMonth(startDate.getMonth() - months);
+
+    const [events, activeMemberCount] = await Promise.all([
+      this.prisma.event.findMany({
+        where: { mahber_id: mahberId, start_time: { gte: startDate }, is_cancelled: false },
+        select: { id: true, start_time: true },
+        orderBy: { start_time: 'asc' },
+      }),
+      this.prisma.membership.count({
+        where: { mahber_id: mahberId, status: MembershipStatus.Active },
+      }),
+    ]);
+
+    const eventIds = events.map((e) => e.id);
+
+    const attendanceRecords = await this.prisma.attendance.findMany({
+      where: { mahber_id: mahberId, event_id: { in: eventIds } },
+    });
+
+    const attendanceByEvent = new Map<string, Set<string>>();
+    for (const rec of attendanceRecords) {
+      if (!attendanceByEvent.has(rec.event_id)) {
+        attendanceByEvent.set(rec.event_id, new Set());
+      }
+      attendanceByEvent.get(rec.event_id)!.add(rec.member_id);
+    }
+
+    const monthlyMap = new Map<string, { eventCount: number; totalAttended: number }>();
+
+    for (const event of events) {
+      const monthKey = event.start_time.toISOString().slice(0, 7);
+      if (!monthlyMap.has(monthKey)) {
+        monthlyMap.set(monthKey, { eventCount: 0, totalAttended: 0 });
+      }
+      const monthData = monthlyMap.get(monthKey)!;
+      monthData.eventCount++;
+      monthData.totalAttended += attendanceByEvent.get(event.id)?.size ?? 0;
+    }
+
+    const trends = Array.from(monthlyMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, data]) => ({
+        month,
+        event_count: data.eventCount,
+        total_members: activeMemberCount,
+        total_attended: data.totalAttended,
+        average_attendance_rate: data.eventCount > 0
+          ? Math.round((data.totalAttended / (activeMemberCount * data.eventCount)) * 100)
+          : 0,
+      }));
+
+    return { trends, total_active_members: activeMemberCount };
+  }
+
+  async exportAttendanceReportPdf(
+    mahberId: string,
+    mahberName: string,
+    filters: { startDate?: Date; endDate?: Date },
+  ): Promise<Buffer> {
+    const dateFilter: { gte?: Date; lte?: Date } = {};
+    if (filters.startDate) dateFilter.gte = filters.startDate;
+    if (filters.endDate) dateFilter.lte = filters.endDate;
+    const hasDateFilter = Object.keys(dateFilter).length > 0;
+
+    const [activeMembers, allEvents, attendanceRecords, totalFines] = await Promise.all([
+      this.prisma.membership.count({
+        where: { mahber_id: mahberId, status: MembershipStatus.Active },
+      }),
+      this.prisma.event.findMany({
+        where: {
+          mahber_id: mahberId,
+          ...(hasDateFilter ? { start_time: dateFilter } : {}),
+        },
+        orderBy: { start_time: 'desc' },
+        take: 100,
+      }),
+      this.prisma.attendance.findMany({
+        where: { mahber_id: mahberId },
+      }),
+      this.prisma.ledgerEntry.aggregate({
+        where: { mahber_id: mahberId, transaction_type: TransactionType.Fine },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    const attendanceByEvent = new Map<string, Set<string>>();
+    for (const rec of attendanceRecords) {
+      if (!attendanceByEvent.has(rec.event_id)) {
+        attendanceByEvent.set(rec.event_id, new Set());
+      }
+      attendanceByEvent.get(rec.event_id)!.add(rec.member_id);
+    }
+
+    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+    const chunks: Buffer[] = [];
+    doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+
+    const dateRangeLabel = filters.startDate && filters.endDate
+      ? `${filters.startDate.toLocaleDateString()} - ${filters.endDate.toLocaleDateString()}`
+      : 'All time';
+
+    let y = 50;
+    const leftMargin = 50;
+
+    const writeText = (text: string, opts: { size?: number; bold?: boolean; color?: string } = {}) => {
+      doc.font(opts.bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(opts.size ?? 12);
+      if (opts.color) doc.fillColor(opts.color);
+      doc.text(text, leftMargin, y, { width: 495 });
+      y += (opts.size ?? 12) * 1.5;
+      doc.fillColor('#000000');
+    };
+
+    writeText('Attendance Report', { size: 22, bold: true });
+    writeText(mahberName, { size: 14, color: '#666666' });
+    writeText(`Period: ${dateRangeLabel}`, { size: 11, color: '#999999' });
+    y += 10;
+    doc.moveTo(leftMargin, y).lineTo(545, y).strokeColor('#cccccc').stroke();
+    y += 20;
+
+    writeText('Summary', { size: 16, bold: true });
+    writeText(`Total Active Members:  ${activeMembers}`);
+    writeText(`Total Events:          ${allEvents.length}`);
+    writeText(`Total Fines Collected: ${Number(totalFines._sum.amount ?? 0).toFixed(2)} ETB`);
+    y += 10;
+
+    const totalAttendedAcrossEvents = attendanceByEvent.size;
+    writeText(`Events with Attendance: ${totalAttendedAcrossEvents}`, { color: '#15803d' });
+    y += 10;
+
+    doc.moveTo(leftMargin, y).lineTo(545, y).strokeColor('#cccccc').stroke();
+    y += 20;
+
+    writeText('Event Attendance Breakdown', { size: 16, bold: true });
+
+    const colWidths = [90, 50, 50, 50, 100];
+    const headers = ['Date', 'Members', 'Attended', 'Rate', 'Event'];
+
+    doc.font('Helvetica-Bold').fontSize(8);
+    let x = leftMargin;
+    headers.forEach((h, i) => {
+      doc.text(h, x, y, { width: colWidths[i], align: 'left' });
+      x += colWidths[i];
+    });
+    y += 14;
+    doc.moveTo(leftMargin, y - 4).lineTo(leftMargin + colWidths.reduce((a, b) => a + b, 0), y - 4).strokeColor('#cccccc').stroke();
+
+    doc.font('Helvetica').fontSize(7);
+    for (const event of allEvents) {
+      if (y > 750) { doc.addPage(); y = 50; }
+
+      const attended = attendanceByEvent.get(event.id)?.size ?? 0;
+      const rate = activeMembers > 0 ? Math.round((attended / activeMembers) * 100) : 0;
+
+      x = leftMargin;
+      doc.text(event.start_time.toISOString().split('T')[0], x, y, { width: colWidths[0], align: 'left' }); x += colWidths[0];
+      doc.text(String(activeMembers), x, y, { width: colWidths[1], align: 'left' }); x += colWidths[1];
+      doc.text(String(attended), x, y, { width: colWidths[2], align: 'left' }); x += colWidths[2];
+      doc.text(`${rate}%`, x, y, { width: colWidths[3], align: 'left' }); x += colWidths[3];
+      doc.text(event.title.substring(0, 25), x, y, { width: colWidths[4], align: 'left' }); x += colWidths[4];
+      y += 12;
+    }
+
+    doc.end();
+    return new Promise((resolve) => {
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+    });
+  }
+
   private async hasAttendanceFineForEvent(
     mahberId: string,
     memberId: string,
