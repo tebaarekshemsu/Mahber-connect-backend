@@ -15,11 +15,12 @@ export const DEFAULT_ROLES: Record<string, Role> = {
       PERMISSIONS.SEND_ANNOUNCEMENTS,
       PERMISSIONS.VIEW_REPORTS,
       PERMISSIONS.MANAGE_ROLES,
+      PERMISSIONS.APPROVE_EXPENSE,
     ],
   },
   Treasurer: {
     name: 'Treasurer',
-    permissions: [PERMISSIONS.MANAGE_FINANCES, PERMISSIONS.VIEW_REPORTS],
+    permissions: [PERMISSIONS.MANAGE_FINANCES, PERMISSIONS.VIEW_REPORTS, PERMISSIONS.CREATE_EXPENSE],
   },
   Secretary: {
     name: 'Secretary',

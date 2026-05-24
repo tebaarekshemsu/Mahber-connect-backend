@@ -41,6 +41,7 @@ model User {
   fines_waived Fine[] @relation("FineWaiver")
   lotteries_won Lottery[]
   expenses_created Expense[]
+  expenses_approved Expense[] @relation("ExpenseApprover")
   attendance_records Attendance[]
   event_photos EventPhoto[]
   announcements_created Announcement[]
@@ -307,21 +308,40 @@ enum ExpenseCategory {
   Other
 }
 
-model Expense {
-  id         String          @id @default(uuid())
-  mahber_id  String
-  amount     Decimal         @db.Decimal(10, 2)
-  reason     String
-  category   ExpenseCategory
-  created_by String
-  created_at DateTime        @default(now())
-  updated_at DateTime        @updatedAt
+enum ExpenseStatus {
+  Pending
+  Rejected
+  Paid
+  Failed
+}
 
-  mahber         Mahber @relation(fields: [mahber_id], references: [id])
-  creator        User   @relation(fields: [created_by], references: [id])
+model Expense {
+  id                    String          @id @default(uuid())
+  mahber_id             String
+  amount                Decimal         @db.Decimal(10, 2)
+  reason                String
+  category              ExpenseCategory
+  status                ExpenseStatus   @default(Pending)
+  created_by            String
+  approved_by           String?
+  approved_at           DateTime?
+  rejection_reason      String?
+  recipient_name        String
+  recipient_account_type String          // "bank" or "telebirr"
+  recipient_account     String
+  recipient_bank_code   String?
+  chapa_transfer_ref    String?
+  chapa_transfer_status String?
+  created_at            DateTime        @default(now())
+  updated_at            DateTime        @updatedAt
+
+  mahber         Mahber          @relation(fields: [mahber_id], references: [id])
+  creator        User            @relation(fields: [created_by], references: [id])
+  approver       User?           @relation("ExpenseApprover", fields: [approved_by], references: [id])
   ledger_entries LedgerEntry[]
 
   @@index([mahber_id])
+  @@index([mahber_id, status])
   @@map("expenses")
 }
 

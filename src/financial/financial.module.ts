@@ -15,6 +15,7 @@ import { LotteryService } from './lottery.service';
 import { LotteryController } from './lottery.controller';
 import { PayoutService } from './payout.service';
 import { PayoutController } from './payout.controller';
+import { ChapaController } from './chapa.controller';
 import { AuditModule } from '../audit/audit.module';
 import { MahberFinanceController } from './mahber-finance.controller';
 import { PaymentCallbackController } from './payment-callback.controller';
@@ -33,6 +34,7 @@ import { PaymentBrowserCallbackController } from './payment-browser-callback.con
     PaymentCallbackController,
     PaymentBrowserCallbackController,
     PayoutController,
+    ChapaController,
   ],
   providers: [LedgerService, PaymentService, RoleGuard, ChapaService, FineService, ExpenseService, LotteryService, ReceiptService, PayoutService],
   exports: [LedgerService, ChapaService, PaymentService, FineService, ExpenseService, LotteryService, ReceiptService, PayoutService],

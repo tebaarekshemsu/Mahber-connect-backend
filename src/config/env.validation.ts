@@ -28,6 +28,7 @@ export const envValidationSchema = Joi.object({
   REDIS_TLS: Joi.string().valid('true', 'false').default('false'),
 
   // Chapa Payment Gateway
+  CHAPA_APPROVAL_SECRET: Joi.string().optional(),
   CHAPA_SECRET_KEY: Joi.string().required().messages({
     'any.required': 'CHAPA_SECRET_KEY is required for payment processing.',
     'string.empty': 'CHAPA_SECRET_KEY must not be empty.',

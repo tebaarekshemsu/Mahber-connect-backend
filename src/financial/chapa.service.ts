@@ -25,6 +25,28 @@ export interface InitializePaymentParams {
   };
 }
 
+export interface ChapaBank {
+  id: number;
+  code: string | number;
+  name: string;
+  swift?: string;
+  acc_no_length?: number;
+  is_mobile_money?: boolean;
+}
+
+export interface InitiateTransferParams {
+  account_name: string;
+  account_number: string;
+  amount: number;
+  reference: string;
+  bank_code?: string;
+}
+
+export interface InitiateTransferResult {
+  status: string;
+  transfer_ref: string;
+}
+
 export interface InitializePaymentResult {
   checkout_url: string;
   tx_ref: string;
@@ -154,6 +176,94 @@ export class ChapaService {
         throw new ServiceUnavailableException(
           'Payment service is currently unavailable. Please try again later.',
         );
+    }
+  }
+
+  async initiateTransfer(
+    params: InitiateTransferParams,
+  ): Promise<InitiateTransferResult> {
+    if (this.isCircuitOpen()) {
+      this.logger.warn('Circuit breaker is open – Chapa transfer call rejected');
+      throw new ServiceUnavailableException(
+        'Transfer service is temporarily unavailable. Please try again later.',
+      );
+    }
+
+    try {
+      const payload: Record<string, unknown> = {
+        account_name: params.account_name,
+        account_number: params.account_number,
+        amount: params.amount,
+        currency: 'ETB',
+        reference: params.reference,
+      };
+      if (params.bank_code) {
+        payload.bank_code = params.bank_code;
+      }
+
+      const response = await this.client.post<{
+        status: string;
+        message: string;
+        data: { reference: string };
+      }>('/transfers', payload);
+
+      this.recordSuccess();
+      this.logger.log(`Transfer initiated: ref=${params.reference}`);
+
+      return {
+        status: response.data.status,
+        transfer_ref: response.data.data.reference,
+      };
+    } catch (error) {
+      this.recordFailure();
+      const errAny = error as any;
+      let detailedMsg: string;
+      if (errAny?.response?.data) {
+        detailedMsg = JSON.stringify(errAny.response.data);
+      } else if (error instanceof Error) {
+        detailedMsg = error.message;
+      } else {
+        detailedMsg = String(error);
+      }
+      this.logger.error(`Transfer failed ref=${params.reference}: ${detailedMsg}`);
+      throw new ServiceUnavailableException(
+        'Transfer service is currently unavailable. Please try again later.',
+      );
+    }
+  }
+
+  async getBanks(): Promise<ChapaBank[]> {
+    if (this.isCircuitOpen()) {
+      this.logger.warn('Circuit breaker is open – Chapa banks call rejected');
+      throw new ServiceUnavailableException(
+        'Bank list is temporarily unavailable. Please try again later.',
+      );
+    }
+
+    try {
+      const response = await this.client.get<{
+        status: string;
+        message: string;
+        data: ChapaBank[];
+      }>('/banks');
+
+      this.recordSuccess();
+      return response.data.data ?? [];
+    } catch (error) {
+      this.recordFailure();
+      const errAny = error as any;
+      let detailedMsg: string;
+      if (errAny?.response?.data) {
+        detailedMsg = JSON.stringify(errAny.response.data);
+      } else if (error instanceof Error) {
+        detailedMsg = error.message;
+      } else {
+        detailedMsg = String(error);
+      }
+      this.logger.error(`Failed to fetch banks: ${detailedMsg}`);
+      throw new ServiceUnavailableException(
+        'Bank list is currently unavailable. Please try again later.',
+      );
     }
   }
 

@@ -29,15 +29,48 @@ export class ExpenseController {
     return this.expenseService.findAll(mahberId);
   }
 
+  @Get('pending')
   @UseGuards(RoleGuard)
-  @RequirePermission(PERMISSIONS.MANAGE_FINANCES)
+  @RequirePermission(PERMISSIONS.APPROVE_EXPENSE)
+  @ApiOperation({ summary: 'List pending expenses awaiting approval' })
+  findPending(@Param('id') mahberId: string) {
+    return this.expenseService.findPending(mahberId);
+  }
+
+  @UseGuards(RoleGuard)
+  @RequirePermission(PERMISSIONS.CREATE_EXPENSE)
   @Post()
-  @ApiOperation({ summary: 'Create a new expense (treasurer/admin only)' })
+  @ApiOperation({ summary: 'Create a new expense (treasurer only)' })
   create(
     @Param('id') mahberId: string,
     @CurrentUser() user: JwtPayload,
     @Body() dto: CreateExpenseDto,
   ) {
     return this.expenseService.create(mahberId, dto, user.sub);
+  }
+
+  @UseGuards(RoleGuard)
+  @RequirePermission(PERMISSIONS.APPROVE_EXPENSE)
+  @Post(':expenseId/approve')
+  @ApiOperation({ summary: 'Approve a pending expense (admin only)' })
+  approve(
+    @Param('id') mahberId: string,
+    @Param('expenseId') expenseId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.expenseService.approve(expenseId, mahberId, user.sub);
+  }
+
+  @UseGuards(RoleGuard)
+  @RequirePermission(PERMISSIONS.APPROVE_EXPENSE)
+  @Post(':expenseId/reject')
+  @ApiOperation({ summary: 'Reject a pending expense (admin only)' })
+  reject(
+    @Param('id') mahberId: string,
+    @Param('expenseId') expenseId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body('reason') reason: string,
+  ) {
+    return this.expenseService.reject(expenseId, mahberId, user.sub, reason);
   }
 }

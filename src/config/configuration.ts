@@ -28,6 +28,7 @@ export const jwtConfig = registerAs('jwt', () => ({
 export const chapaConfig = registerAs('chapa', () => ({
   secretKey: process.env.CHAPA_SECRET_KEY,
   baseUrl: process.env.CHAPA_BASE_URL || 'https://api.chapa.co/v1',
+  approvalSecret: process.env.CHAPA_APPROVAL_SECRET,
 }));
 
 export const firebaseConfig = registerAs('firebase', () => ({
@@ -63,6 +64,7 @@ export interface JwtConfig {
 export interface ChapaConfig {
   secretKey: string;
   baseUrl: string;
+  approvalSecret?: string;
 }
 
 export interface FirebaseConfig {
