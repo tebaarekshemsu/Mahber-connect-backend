@@ -178,17 +178,38 @@ export class MahberService {
   async remove(mahberId: string, userId: string) {
     await this.assertAdmin(mahberId, userId);
 
-    const activeMembers = await this.prisma.membership.count({
-      where: { mahber_id: mahberId, status: MembershipStatus.Active },
+    const otherMembers = await this.prisma.membership.count({
+      where: { mahber_id: mahberId, member_id: { not: userId } },
     });
 
-    if (activeMembers > 1) {
-      throw new ConflictException('Cannot delete organization with active members');
+    if (otherMembers > 0) {
+      throw new ConflictException('Cannot delete organization with other members');
     }
 
-    await this.prisma.mahber.delete({ where: { id: mahberId } });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.vote.deleteMany({ where: { poll: { mahber_id: mahberId } } });
+      await tx.announcementRead.deleteMany({ where: { announcement: { mahber_id: mahberId } } });
+      await tx.eventInvitation.deleteMany({ where: { mahber_id: mahberId } });
+      await tx.attendance.deleteMany({ where: { mahber_id: mahberId } });
+      await tx.eventPhoto.deleteMany({ where: { mahber_id: mahberId } });
+      await tx.ledgerEntry.deleteMany({ where: { mahber_id: mahberId } });
+      await tx.fine.deleteMany({ where: { mahber_id: mahberId } });
+      await tx.payment.deleteMany({ where: { mahber_id: mahberId } });
+      await tx.event.deleteMany({ where: { mahber_id: mahberId } });
+      await tx.announcement.deleteMany({ where: { mahber_id: mahberId } });
+      await tx.poll.deleteMany({ where: { mahber_id: mahberId } });
+      await tx.chatMessage.deleteMany({ where: { mahber_id: mahberId } });
+      await tx.payout.deleteMany({ where: { mahber_id: mahberId } });
+      await tx.expense.deleteMany({ where: { mahber_id: mahberId } });
+      await tx.lottery.deleteMany({ where: { mahber_id: mahberId } });
+      await tx.pendingPayment.deleteMany({ where: { mahber_id: mahberId } });
+      await tx.membership.deleteMany({ where: { mahber_id: mahberId } });
+      await tx.joinRequest.deleteMany({ where: { mahber_id: mahberId } });
+      await tx.auditTrail.deleteMany({ where: { mahber_id: mahberId } });
 
-    // Invalidate cached organization settings
+      await tx.mahber.delete({ where: { id: mahberId } });
+    });
+
     await this.cache.del(`mahber:settings:${mahberId}`);
 
     return { message: 'Organization deleted successfully' };
