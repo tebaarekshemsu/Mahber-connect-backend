@@ -29,6 +29,7 @@ export class WebhookController {
   @Get('chapa/verify/:tx_ref')
   @ApiOperation({ summary: 'Verify a Chapa payment by transaction reference' })
   async verifyPayment(@Param('tx_ref') txRef: string) {
+    this.logger.log(`Verify payment requested for tx_ref=${txRef}`);
     return this.paymentService.findByTxRef(txRef);
   }
 
@@ -57,6 +58,10 @@ export class WebhookController {
 
     const payload: Record<string, any> =
       typeof req.body === 'object' ? req.body : JSON.parse(rawBody.toString());
+
+    this.logger.log(
+      `Webhook received: signature=${signature ? 'present' : 'missing'} tx_ref=${payload.tx_ref ?? 'missing'} status=${payload.status ?? 'missing'}`,
+    );
 
     await this.paymentService.processWebhook(payload);
 

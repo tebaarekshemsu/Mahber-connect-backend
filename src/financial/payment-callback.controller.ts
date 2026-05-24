@@ -74,9 +74,9 @@ export class PaymentCallbackController {
       return { success: true, message: `Payment already in status: ${pendingPayment.status}` };
     }
 
-    const isSuccess = typeof status === 'string' && status.toLowerCase() === 'success';
+    const normalizedStatus = typeof status === 'string' ? status.toLowerCase() : '';
 
-    if (isSuccess) {
+    if (normalizedStatus === 'success') {
       await this.prisma.$transaction(async (tx) => {
         const membership = await tx.membership.findFirstOrThrow({
           where: {
@@ -150,11 +150,12 @@ export class PaymentCallbackController {
       this.logger.log(`Chapa callback processed successfully for pending payment: ${pendingPayment.id}`);
       return { success: true };
     } else {
+      const nextStatus = normalizedStatus === 'expired' ? 'expired' : 'failed';
       await this.prisma.pendingPayment.update({
         where: { id: pendingPayment.id },
-        data: { status: 'failed' },
+        data: { status: nextStatus },
       });
-      return { success: false, message: 'Payment failed' };
+      return { success: false, message: nextStatus === 'expired' ? 'Payment expired' : 'Payment failed' };
     }
   }
 }

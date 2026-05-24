@@ -8,6 +8,7 @@ import {
   BadRequestException,
   ForbiddenException,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -18,16 +19,19 @@ import { ChapaService } from './chapa.service';
 import { ConfigService } from '@nestjs/config';
 import { MembershipStatus, Prisma } from '@prisma/client';
 import { addFrequency } from '../common/utils/date.utils';
+import { PaymentService } from './payment.service';
 
 @ApiTags('Financial')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('mahbers/:id')
 export class MahberFinanceController {
+  private readonly logger = new Logger(MahberFinanceController.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly chapa: ChapaService,
     private readonly config: ConfigService,
+    private readonly paymentService: PaymentService,
   ) {}
 
   @Post('join')
@@ -98,11 +102,12 @@ export class MahberFinanceController {
       // Call Chapa to initialize payment
       const callbackUrl =
         this.config.get<string>('app.callbackUrl') ??
-        'https://heath-watts-todd-stones.trycloudflare.com/payments/chapa/callback';
+        ' https://minute-worldcat-flexible-warm.trycloudflare.com/payment/callback';
       const returnUrl =
         this.config.get<string>('app.returnUrl') ??
-        'https://heath-watts-todd-stones.trycloudflare.com/return';
+        ' https://minute-worldcat-flexible-warm.trycloudflare.com/payment/return';
 
+      this.logger.log(`Chapa init (join) - callbackUrl=${callbackUrl} returnUrl=${returnUrl} tx_ref=${pendingPayment.id}`);
       const chapaResult = await this.chapa.initializePayment({
         tx_ref: pendingPayment.id,
         amount: joinFeeAmount,
@@ -185,90 +190,13 @@ export class MahberFinanceController {
     @Param('id') mahberId: string,
     @CurrentUser() user: JwtPayload,
   ) {
-    const userId = user.sub;
-
-    // Verify membership exists and is Active
-    const membership = await this.prisma.membership.findFirst({
-      where: { mahber_id: mahberId, member_id: userId },
-    });
-
-    if (!membership) {
-      throw new NotFoundException('Membership not found');
-    }
-
-    if (membership.status !== MembershipStatus.Active) {
-      throw new BadRequestException('Only active members can make recurring payments');
-    }
-
-    const mahber = await this.prisma.mahber.findUnique({
-      where: { id: mahberId },
-    });
-
-    if (!mahber) {
-      throw new NotFoundException('Mahber not found');
-    }
-
-    const config = mahber.configuration as {
-      contribution_amount?: number;
-      payment_frequency?: string;
-    } | null;
-
-    const amount = config?.contribution_amount ?? 0;
-    if (amount <= 0) {
-      throw new BadRequestException('No contribution amount configured for this Mahber');
-    }
-
-    // Create a PendingPayment
-    const pendingPayment = await this.prisma.pendingPayment.create({
-      data: {
-        mahber_id: mahberId,
-        member_id: userId,
-        amount: new Prisma.Decimal(amount),
-        status: 'pending',
-      },
-    });
-
-    // Get user details
-    const userRecord = await this.prisma.user.findUniqueOrThrow({
-      where: { id: userId },
-    });
-    const nameParts = (userRecord.name || 'Unknown User').split(' ');
-    const firstName = nameParts[0] || 'Unknown';
-    const lastName = nameParts.slice(1).join(' ') || 'User';
-    const email = userRecord.email || `${userId}@mahberconnect.com`;
-
-    // Call Chapa to initialize payment
-    const callbackUrl =
-      this.config.get<string>('app.callbackUrl') ??
-      'https://heath-watts-todd-stones.trycloudflare.com/payments/chapa/callback';
-    const returnUrl =
-      this.config.get<string>('app.returnUrl') ??
-      'https://heath-watts-todd-stones.trycloudflare.com/payment/return';
-
-    const chapaResult = await this.chapa.initializePayment({
-      tx_ref: pendingPayment.id,
-      amount,
-      currency: 'ETB',
-      email,
-      first_name: firstName,
-      last_name: lastName,
-      callback_url: callbackUrl,
-      return_url: returnUrl,
-      customization: {
-        title: `Contribution to ${mahber.name}`,
-        description: `Recurring contribution payment`,
-      },
-      metadata: {
-        mahber_id: mahberId,
-        member_id: userId,
-        payment_type: 'Contribution',
-        amount,
-      },
+    const result = await this.paymentService.initiatePayment(mahberId, user.sub, {
+      fine_ids: [],
     });
 
     return {
-      checkout_url: chapaResult.checkout_url,
-      payment_id: pendingPayment.id,
+      checkout_url: result.checkout_url,
+      payment_id: result.tx_ref,
     };
   }
 

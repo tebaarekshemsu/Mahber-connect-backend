@@ -20,6 +20,9 @@ export interface InitializePaymentParams {
     member_id: string;
     payment_type: string;
     amount: number;
+    fine_ids?: string[];
+    period_start?: string | null;
+    period_end?: string | null;
   };
 }
 
@@ -117,6 +120,9 @@ export class ChapaService {
           member_id: params.metadata.member_id,
           payment_type: params.metadata.payment_type,
           amount: params.metadata.amount,
+          fine_ids: params.metadata.fine_ids,
+          period_start: params.metadata.period_start,
+          period_end: params.metadata.period_end,
         },
       };
 

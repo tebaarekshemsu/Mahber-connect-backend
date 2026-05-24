@@ -11,13 +11,13 @@ datasource db {
 }
 
 model User {
-  id         String   @id @default(uuid())
-  phone      String   @unique // +251XXXXXXXXX format
-  password   String // bcrypt hashed
-  name       String // Supports Amharic
+  id                 String   @id @default(uuid())
+  phone              String   @unique // +251XXXXXXXXX format
+  password           String // bcrypt hashed
+  name               String // Supports Amharic
   email              String?
   bio                String? // Supports Amharic
-  notification_prefs Json?   // e.g. { "payments": true, "events": true, "announcements": true, "chat": false }
+  notification_prefs Json? // e.g. { "payments": true, "events": true, "announcements": true, "chat": false }
   created_at         DateTime @default(now())
   updated_at         DateTime @updatedAt
 
@@ -120,8 +120,13 @@ model Payment {
   tx_ref          String        @unique
   chapa_reference String?
   checkout_url    String?
+  fine_ids        Json?
+  period_start    DateTime?
+  period_end      DateTime?
+  expires_at      DateTime?
   completed_at    DateTime?
   created_at      DateTime      @default(now())
+  updated_at      DateTime      @default(now()) @updatedAt
 
   @@index([mahber_id, member_id, status])
   @@map("payments")
@@ -149,6 +154,7 @@ enum PaymentStatus {
   Pending
   Completed
   Failed
+  Expired
 }
 
 model LedgerEntry {
@@ -183,12 +189,15 @@ model Fine {
   violation_type ViolationType
   amount         Decimal       @db.Decimal(10, 2)
   is_waived      Boolean       @default(false)
+  paid_at        DateTime?
+  payment_id     String?
   waiver_reason  String?
   waived_by      String?
   waived_at      DateTime?
   created_at     DateTime      @default(now())
 
   @@index([mahber_id, member_id])
+  @@index([mahber_id, member_id, paid_at])
   @@map("fines")
 }
 
@@ -235,10 +244,10 @@ enum EventType {
 }
 
 model Attendance {
-  id           String   @id @default(uuid())
-  event_id     String
-  member_id    String
-  mahber_id    String
+  id            String   @id @default(uuid())
+  event_id      String
+  member_id     String
+  mahber_id     String
   checked_in_at DateTime @default(now())
 
   @@unique([event_id, member_id])
@@ -247,14 +256,14 @@ model Attendance {
 
 model EventPhoto {
   cloudinary_public_id String?
-  id             String   @id @default(uuid())
-  event_id       String
-  mahber_id      String
-  uploader_id    String
-  file_path      String
-  thumbnail_path String?
-  caption        String? // Supports Amharic
-  created_at     DateTime @default(now())
+  id                   String   @id @default(uuid())
+  event_id             String
+  mahber_id            String
+  uploader_id          String
+  file_path            String
+  thumbnail_path       String?
+  caption              String? // Supports Amharic
+  created_at           DateTime @default(now())
 
   @@index([event_id, mahber_id])
   @@map("event_photos")
@@ -285,10 +294,10 @@ enum AnnouncementPriority {
 }
 
 model AnnouncementRead {
-  id              String       @id @default(uuid())
+  id              String   @id @default(uuid())
   announcement_id String
   member_id       String
-  read_at         DateTime     @default(now())
+  read_at         DateTime @default(now())
 
   announcement Announcement @relation(fields: [announcement_id], references: [id])
 
@@ -315,16 +324,16 @@ enum PollType {
 }
 
 model Poll {
-  id                   String    @id @default(uuid())
+  id                   String   @id @default(uuid())
   mahber_id            String
-  question             String    @db.Text // Supports Amharic
+  question             String   @db.Text // Supports Amharic
   options              Json // array of { id: string, text: string }
   poll_type            PollType
   voting_deadline      DateTime
   eligibility_criteria String? // optional role name filter
-  is_closed            Boolean   @default(false)
+  is_closed            Boolean  @default(false)
   created_by           String
-  created_at           DateTime  @default(now())
+  created_at           DateTime @default(now())
 
   votes   Vote[]
   creator User   @relation(fields: [created_by], references: [id])
@@ -394,7 +403,7 @@ model Notification {
   link       String?
   created_at DateTime         @default(now())
 
-  user       User             @relation(fields: [user_id], references: [id])
+  user User @relation(fields: [user_id], references: [id])
 
   @@index([user_id, created_at])
   @@map("notifications")

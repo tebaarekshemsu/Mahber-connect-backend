@@ -32,6 +32,15 @@ export class PaymentController {
     return this.paymentService.initiatePayment(mahberId, user.sub, dto);
   }
 
+  @Get('outstanding')
+  @ApiOperation({ summary: 'Get outstanding obligations for the current member' })
+  getOutstanding(
+    @Param('id') mahberId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.paymentService.getOutstandingObligations(mahberId, user.sub);
+  }
+
   @Get()
   @ApiOperation({ summary: 'List payments for a mahber member' })
   findAll(
@@ -59,8 +68,9 @@ export class PaymentController {
   findOne(
     @Param('id') mahberId: string,
     @Param('paymentId') paymentId: string,
+    @CurrentUser() user: JwtPayload,
   ) {
-    return this.paymentService.findOne(mahberId, paymentId);
+    return this.paymentService.findOne(mahberId, paymentId, user.sub);
   }
 
   @Post(':paymentId/retry')

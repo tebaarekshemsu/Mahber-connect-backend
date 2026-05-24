@@ -13,6 +13,7 @@ import { LotteryController } from './lottery.controller';
 import { AuditModule } from '../audit/audit.module';
 import { MahberFinanceController } from './mahber-finance.controller';
 import { PaymentCallbackController } from './payment-callback.controller';
+import { PaymentBrowserCallbackController } from './payment-browser-callback.controller';
 
 @Module({
   imports: [AuditModule],
@@ -24,6 +25,7 @@ import { PaymentCallbackController } from './payment-callback.controller';
     LotteryController,
     MahberFinanceController,
     PaymentCallbackController,
+    PaymentBrowserCallbackController,
   ],
   providers: [LedgerService, PaymentService, RoleGuard, ChapaService, FineService, LotteryService],
   exports: [LedgerService, ChapaService, PaymentService, FineService, LotteryService],

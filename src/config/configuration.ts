@@ -6,9 +6,9 @@ export const appConfig = registerAs('app', () => ({
   allowedOrigins: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
   url: process.env.APP_URL || 'http://localhost:3000',
   callbackUrl:
-    process.env.APP_CALLBACK_URL || `${process.env.APP_URL || 'http://localhost:3000'}/payments/chapa/callback`,
+    process.env.APP_CALLBACK_URL || `${process.env.APP_URL || 'http://localhost:3000'}/payment/callback`,
   returnUrl:
-    process.env.APP_RETURN_URL || `${process.env.APP_URL || 'http://localhost:3000'}/payment/callback`,
+    process.env.APP_RETURN_URL || `${process.env.APP_URL || 'http://localhost:3000'}/payment/return`,
 }));
 
 export const databaseConfig = registerAs('database', () => ({
