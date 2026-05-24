@@ -38,6 +38,7 @@ export class LotteryService {
     mahberId: string,
     operationalCostRate: number,
     fineThreshold: number,
+    executedBy: string,
   ): Promise<LotteryResult> {
     // 1. Get all Active members
     const activeMembers = await this.prisma.membership.findMany({
@@ -45,10 +46,53 @@ export class LotteryService {
       select: { member_id: true, has_won_current_cycle: true },
     });
 
-    // 2. Exclude members who have already won this cycle (Req 9.3)
+    if (activeMembers.length === 0) {
+      throw new BadRequestException('No active members for the lottery draw');
+    }
+
+    // 2. Check ALL active members have paid their contribution since last draw
+    const lastDraw = await this.prisma.lottery.findFirst({
+      where: { mahber_id: mahberId },
+      orderBy: { created_at: 'desc' },
+      select: { created_at: true },
+    });
+
+    const mahber = await this.prisma.mahber.findUnique({
+      where: { id: mahberId },
+      select: { created_at: true },
+    });
+
+    const sinceDate = lastDraw?.created_at ?? mahber!.created_at;
+
+    const unpaidMemberIds: string[] = [];
+    for (const member of activeMembers) {
+      const paid = await this.prisma.payment.findFirst({
+        where: {
+          mahber_id: mahberId,
+          member_id: member.member_id,
+          payment_type: 'Contribution',
+          status: 'Completed',
+          created_at: { gte: sinceDate },
+        },
+      });
+      if (!paid) unpaidMemberIds.push(member.member_id);
+    }
+
+    if (unpaidMemberIds.length > 0) {
+      const unpaidUsers = await this.prisma.user.findMany({
+        where: { id: { in: unpaidMemberIds } },
+        select: { name: true },
+      });
+      const names = unpaidUsers.map((u) => u.name).join(', ');
+      throw new BadRequestException(
+        `Lottery cannot be drawn: the following members have not paid their contribution: ${names}`,
+      );
+    }
+
+    // 3. Exclude members who have already won this cycle (Req 9.3)
     const notYetWon = activeMembers.filter((m) => !m.has_won_current_cycle);
 
-    // 3. Exclude members with unpaid fines exceeding threshold (Req 9.4)
+    // 4. Exclude members with unpaid fines exceeding threshold (Req 9.4)
     const eligibilityChecks = await Promise.all(
       notYetWon.map(async (m) => {
         const ineligible = await this.fineService.hasUnpaidFinesExceedingThreshold(
@@ -65,21 +109,19 @@ export class LotteryService {
       .map((c) => c.member_id);
 
     if (eligibleMemberIds.length === 0) {
-      throw new BadRequestException(
-        'No eligible members for the lottery draw',
-      );
+      throw new BadRequestException('No eligible members for the lottery draw');
     }
 
-    // 4. Generate cryptographically secure random seed (Req 9.2)
+    // 5. Generate cryptographically secure random seed (Req 9.2)
     const seedBuffer = crypto.randomBytes(32);
     const randomSeed = seedBuffer.toString('hex');
 
-    // 5. Deterministic winner selection: seed (as BigInt) % eligibleMembers.length
+    // 6. Deterministic winner selection: seed (as BigInt) % eligibleMembers.length
     const seedBigInt = BigInt('0x' + randomSeed);
     const winnerIndex = Number(seedBigInt % BigInt(eligibleMemberIds.length));
     const winnerId = eligibleMemberIds[winnerIndex];
 
-    // 6. Calculate payout: sum of all Contribution ledger entries minus operational costs (Req 9.5)
+    // 7. Calculate payout: sum of all Contribution ledger entries minus operational costs (Req 9.5)
     const contributionSum = await this.prisma.ledgerEntry.aggregate({
       where: {
         mahber_id: mahberId,
@@ -88,14 +130,13 @@ export class LotteryService {
       _sum: { amount: true },
     });
 
-    const totalContributions =
-      contributionSum._sum.amount ?? new Prisma.Decimal(0);
+    const totalContributions = contributionSum._sum.amount ?? new Prisma.Decimal(0);
     const operationalCost = totalContributions
       .mul(new Prisma.Decimal(operationalCostRate))
       .div(new Prisma.Decimal(100));
     const payoutAmount = totalContributions.sub(operationalCost);
 
-    // 7. Persist lottery record, payout ledger entry, and winner flag atomically
+    // 8. Persist lottery record, payout ledger entry, expense record, and winner flag atomically
     const lottery = await this.prisma.$transaction(async (tx) => {
       // Create Lottery record
       const lotteryRecord = await tx.lottery.create({
@@ -108,18 +149,40 @@ export class LotteryService {
         },
       });
 
-      // Create Equb_Payout ledger entry for winner
+      // Create Equb_Payout ledger entry for winner (negative amount = expense/debit)
       await this.ledger.createLedgerEntry(
         {
           mahber_id: mahberId,
           member_id: winnerId,
           transaction_type: TransactionType.Equb_Payout,
-          amount: payoutAmount,
+          amount: payoutAmount.negated(),
           description: `Equb payout from lottery draw ${lotteryRecord.id}`,
           lottery_id: lotteryRecord.id,
         },
         tx,
       );
+
+      // Fetch winner's name for the expense record
+      const winnerUser = await tx.user.findUnique({
+        where: { id: winnerId },
+        select: { name: true },
+      });
+
+      // Create Expense record so Equb payout appears in the expenses list
+      await tx.expense.create({
+        data: {
+          mahber_id: mahberId,
+          amount: payoutAmount,
+          reason: `Equb lottery payout to ${winnerUser?.name ?? winnerId} (draw ${lotteryRecord.id})`,
+          category: 'Equb_Payout',
+          status: 'Paid',
+          created_by: executedBy,
+          recipient_name: winnerUser?.name ?? 'Equb Winner',
+          recipient_account_type: 'internal',
+          recipient_account: 'Equb Payout',
+          recipient_bank_code: null,
+        },
+      });
 
       // Mark winner's has_won_current_cycle = true
       await tx.membership.updateMany({
@@ -140,7 +203,7 @@ export class LotteryService {
       createdAt: lottery.created_at,
     };
 
-    // 8. Audit trail log (Req 9.6)
+    // 9. Audit trail log (Req 9.6)
     this.logger.log(
       `[AUDIT] Lottery draw completed: ` +
         `lotteryId=${result.lotteryId} ` +
@@ -152,7 +215,7 @@ export class LotteryService {
         `createdAt=${result.createdAt.toISOString()}`,
     );
 
-    // 9. Notify all members (stub – FCM will be added later) (Req 9.7)
+    // 10. Notify all members (stub – FCM will be added later) (Req 9.7)
     this.notifyMembers(mahberId, result);
 
     return result;

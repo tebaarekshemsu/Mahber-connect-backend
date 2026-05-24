@@ -309,6 +309,7 @@ enum ExpenseCategory {
   Maintenance
   Event
   Other
+  Equb_Payout
 }
 
 enum ExpenseStatus {

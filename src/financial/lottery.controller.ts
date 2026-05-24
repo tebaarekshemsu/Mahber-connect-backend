@@ -4,6 +4,8 @@ import { IsNumber, IsOptional, Max, Min } from 'class-validator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RoleGuard } from '../membership/guards/role.guard';
 import { RequirePermission } from '../membership/decorators/require-permission.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { PERMISSIONS } from '../membership/rbac/permissions';
 import { LotteryService } from './lottery.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -45,11 +47,16 @@ export class LotteryController {
   @RequirePermission(PERMISSIONS.MANAGE_FINANCES)
   @ApiOperation({ summary: 'Manually execute a lottery draw (Treasurer/Admin only)' })
   @ApiParam({ name: 'id', description: 'Mahber ID' })
-  async execute(@Param('id') mahberId: string, @Body() dto: ExecuteLotteryDto) {
+  async execute(
+    @Param('id') mahberId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: ExecuteLotteryDto,
+  ) {
     return this.lotteryService.executeLottery(
       mahberId,
       dto.operationalCostRate ?? 0,
       dto.fineThreshold ?? 0,
+      user.sub,
     );
   }
 }

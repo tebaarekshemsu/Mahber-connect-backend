@@ -3,6 +3,7 @@ import { Processor, Process } from '@nestjs/bull';
 import { Job } from 'bull';
 import { LotteryService } from '../../financial/lottery.service';
 import { NotificationService } from '../../communication/notification.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import { QUEUE_NAMES, LotteryExecutionJobData } from '../interfaces/job-types';
 import { BaseProcessor } from './base.processor';
 
@@ -13,6 +14,7 @@ export class LotteryExecutionProcessor extends BaseProcessor<LotteryExecutionJob
   constructor(
     private readonly lotteryService: LotteryService,
     private readonly notificationService: NotificationService,
+    private readonly prisma: PrismaService,
   ) {
     super();
   }
@@ -23,10 +25,18 @@ export class LotteryExecutionProcessor extends BaseProcessor<LotteryExecutionJob
 
     const { mahberId, operationalCostRate, fineThreshold } = job.data;
 
+    // Use any active member as the executedBy reference for automated draws
+    const anyMember = await this.prisma.membership.findFirst({
+      where: { mahber_id: mahberId, status: 'Active' },
+      select: { member_id: true },
+    });
+    const executedBy = anyMember?.member_id;
+
     const result = await this.lotteryService.executeLottery(
       mahberId,
       operationalCostRate,
       fineThreshold,
+      executedBy ?? 'system',
     );
 
     await this.notificationService.sendToMahberMembers(
