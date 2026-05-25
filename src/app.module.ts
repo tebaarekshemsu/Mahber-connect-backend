@@ -21,6 +21,8 @@ import {
   jwtConfig,
   chapaConfig,
   firebaseConfig,
+  emailConfig,
+  smsConfig,
   redisConfig,
 } from './config/configuration';
 import { envValidationSchema } from './config/env.validation';
@@ -30,7 +32,7 @@ import { envValidationSchema } from './config/env.validation';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['.env.local', '.env'],
-      load: [appConfig, databaseConfig, jwtConfig, chapaConfig, firebaseConfig, redisConfig],
+      load: [appConfig, databaseConfig, jwtConfig, chapaConfig, firebaseConfig, emailConfig, smsConfig, redisConfig],
       validationSchema: envValidationSchema,
       validationOptions: {
         abortEarly: false,

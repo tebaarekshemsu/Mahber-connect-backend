@@ -72,6 +72,20 @@ export interface RedisConfig {
   password?: string;
 }
 
+export const emailConfig = registerAs('email', () => ({
+  host: process.env.SMTP_HOST,
+  port: parseInt(process.env.SMTP_PORT || '587', 10),
+  user: process.env.SMTP_USER,
+  pass: process.env.SMTP_PASS,
+  from: process.env.SMTP_FROM || 'noreply@mahberconnect.com',
+}));
+
+export const smsConfig = registerAs('sms', () => ({
+  accountSid: process.env.TWILIO_ACCOUNT_SID,
+  authToken: process.env.TWILIO_AUTH_TOKEN,
+  fromNumber: process.env.TWILIO_FROM_NUMBER,
+}));
+
 export const cloudinaryConfig = registerAs('cloudinary', () => ({
   cloudName: process.env.CLOUDINARY_CLOUD_NAME,
   apiKey: process.env.CLOUDINARY_API_KEY,
@@ -82,4 +96,18 @@ export interface CloudinaryConfig {
   cloudName: string;
   apiKey: string;
   apiSecret: string;
+}
+
+export interface EmailConfig {
+  host: string;
+  port: number;
+  user: string;
+  pass: string;
+  from: string;
+}
+
+export interface SmsConfig {
+  accountSid: string;
+  authToken: string;
+  fromNumber: string;
 }

@@ -34,6 +34,18 @@ export const envValidationSchema = Joi.object({
   }),
   CHAPA_BASE_URL: Joi.string().uri().default('https://api.chapa.co/v1'),
 
+  // Email (SMTP)
+  SMTP_HOST: Joi.string().optional(),
+  SMTP_PORT: Joi.number().default(587),
+  SMTP_USER: Joi.string().optional(),
+  SMTP_PASS: Joi.string().optional(),
+  SMTP_FROM: Joi.string().optional(),
+
+  // SMS (Twilio)
+  TWILIO_ACCOUNT_SID: Joi.string().optional(),
+  TWILIO_AUTH_TOKEN: Joi.string().optional(),
+  TWILIO_FROM_NUMBER: Joi.string().optional(),
+
   // Firebase Cloud Messaging
   FIREBASE_PROJECT_ID: Joi.string().required().messages({
     'any.required': 'FIREBASE_PROJECT_ID is required for push notifications.',

@@ -2,15 +2,29 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { MembershipStatus, NotificationType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { FirebaseService } from './firebase.service';
+import { EmailService } from './email.service';
+import { SmsService } from './sms.service';
 import { CommunicationGateway } from './communication.gateway';
 
 @Injectable()
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
 
+  /** Only broadcast via email/SMS for these critical types */
+  private static readonly BROADCAST_EMAIL_SMS_TYPES = new Set([
+    'PAYMENT_REMINDER',
+    'PAYMENT_OVERDUE',
+    'EVENT_CREATED',
+    'EVENT_CANCELLED',
+    'ANNOUNCEMENT',
+    'LOTTERY_RESULT',
+  ]);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly firebase: FirebaseService,
+    private readonly emailService: EmailService,
+    private readonly smsService: SmsService,
     private readonly gateway: CommunicationGateway,
   ) {}
 
@@ -43,7 +57,7 @@ export class NotificationService {
   ): Promise<void> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { notification_prefs: true },
+      select: { notification_prefs: true, email: true, phone: true },
     });
 
     if (!this.isNotificationEnabled(type, data?.type, user?.notification_prefs)) {
@@ -64,13 +78,41 @@ export class NotificationService {
     // Emit real-time socket event
     this.gateway.server.to(`user_${userId}`).emit('new_notification', notification);
 
+    // FCM push notification
     const tokens = await this.getActiveTokensForUser(userId);
-    if (tokens.length === 0) return;
+    if (tokens.length > 0) {
+      const result = await this.firebase.sendToMultipleDevices(tokens, title, body, data);
+      this.logger.log(
+        `[FCM] Notification sent to user ${userId}: ${result.successCount} success, ${result.failureCount} failed`,
+      );
+    }
 
-    const result = await this.firebase.sendToMultipleDevices(tokens, title, body, data);
-    this.logger.log(
-      `Notification sent to user ${userId}: ${result.successCount} success, ${result.failureCount} failed`,
-    );
+    // Email notification
+    const prefs = user?.notification_prefs;
+    if (user?.email && this.isEmailEnabled(prefs)) {
+      const emailSent = await this.emailService.send(
+        user.email,
+        title,
+        `<p>${body}</p>`,
+      );
+      if (emailSent) {
+        this.logger.log(`[Email] Notification sent to ${user.email}`);
+      }
+    }
+
+    // SMS notification (only for important types)
+    const customType = data?.type;
+    if (
+      user?.phone &&
+      customType &&
+      this.isSmsEnabled(prefs) &&
+      NotificationService.BROADCAST_EMAIL_SMS_TYPES.has(customType)
+    ) {
+      const smsSent = await this.smsService.send(user.phone, `${title}: ${body}`);
+      if (smsSent) {
+        this.logger.log(`[SMS] Notification sent to ${user.phone}`);
+      }
+    }
   }
 
   /** Send a push notification to all active members of a Mahber. */
@@ -89,7 +131,7 @@ export class NotificationService {
         status: MembershipStatus.Active,
         ...(excludeUserId && { member_id: { not: excludeUserId } }),
       },
-      select: { member_id: true, user: { select: { notification_prefs: true } } },
+      select: { member_id: true, user: { select: { notification_prefs: true, email: true, phone: true } } },
     });
 
     if (memberships.length === 0) return;
@@ -131,12 +173,29 @@ export class NotificationService {
     });
 
     const tokens = deviceTokens.map((d: { token: string }) => d.token);
-    if (tokens.length === 0) return;
+    if (tokens.length > 0) {
+      const result = await this.firebase.sendToMultipleDevices(tokens, title, body, data);
+      this.logger.log(
+        `[FCM] Notification sent to mahber ${mahberId} members: ${result.successCount} success, ${result.failureCount} failed`,
+      );
+    }
 
-    const result = await this.firebase.sendToMultipleDevices(tokens, title, body, data);
-    this.logger.log(
-      `Notification sent to mahber ${mahberId} members: ${result.successCount} success, ${result.failureCount} failed`,
-    );
+    // Email & SMS for critical broadcast types only
+    const customType = data?.type;
+    if (customType && NotificationService.BROADCAST_EMAIL_SMS_TYPES.has(customType)) {
+      for (const member of activeMembers) {
+        const prefs = member.user?.notification_prefs;
+        if (member.user?.email && this.isEmailEnabled(prefs)) {
+          await this.emailService.send(member.user.email, title, `<p>${body}</p>`);
+        }
+        if (member.user?.phone && this.isSmsEnabled(prefs)) {
+          await this.smsService.send(member.user.phone, `${title}: ${body}`);
+        }
+      }
+      this.logger.log(
+        `[Email/SMS] Broadcast sent to ${activeMembers.length} members of mahber ${mahberId}`,
+      );
+    }
   }
 
   /** Get all notifications for a user */
@@ -180,6 +239,18 @@ export class NotificationService {
     if (customType === 'CHAT') return prefs.chat !== false;
 
     return true; // Default for other types
+  }
+
+  /** Check if email channel is enabled for this user */
+  isEmailEnabled(prefs?: any): boolean {
+    if (!prefs) return true;
+    return prefs.email !== false;
+  }
+
+  /** Check if SMS channel is enabled for this user */
+  isSmsEnabled(prefs?: any): boolean {
+    if (!prefs) return true;
+    return prefs.sms !== false;
   }
 
   private async getActiveTokensForUser(userId: string): Promise<string[]> {
