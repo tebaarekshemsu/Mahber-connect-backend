@@ -38,6 +38,7 @@ export class PaymentReminderProcessor extends BaseProcessor<PaymentReminderJobDa
   private async processMahberReminders(mahberId: string, configuration: unknown): Promise<void> {
     const config = configuration as {
       payment_frequency?: string;
+      payment_day?: number;
       contribution_amount?: number;
       next_payment_date?: string;
     } | null;

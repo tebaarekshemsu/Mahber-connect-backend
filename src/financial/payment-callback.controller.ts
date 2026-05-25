@@ -17,7 +17,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PaymentService } from './payment.service';
 import { LedgerService } from './ledger.service';
 import { PaymentStatus, MembershipStatus, PaymentType, TransactionType } from '@prisma/client';
-import { addFrequency } from '../common/utils/date.utils';
+import { getNextPaymentDueDate } from '../common/utils/date.utils';
 
 @ApiTags('Payments')
 @Controller('payments')
@@ -130,10 +130,11 @@ export class PaymentCallbackController {
 
         const config = mahber.configuration as {
           payment_frequency?: string;
+          payment_day?: number;
         } | null;
 
         const currentDueDate = membership.next_payment_due ?? new Date();
-        const nextPaymentDue = addFrequency(currentDueDate, config?.payment_frequency);
+        const nextPaymentDue = getNextPaymentDueDate(currentDueDate, config?.payment_frequency, config?.payment_day);
 
         // Update Membership
         await tx.membership.update({

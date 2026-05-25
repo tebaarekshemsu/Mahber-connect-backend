@@ -38,6 +38,7 @@ export class FineCalculationProcessor extends BaseProcessor<FineCalculationJobDa
   private async processMahber(mahberId: string, configuration: unknown): Promise<void> {
     const config = configuration as {
       payment_frequency?: string;
+      payment_day?: number;
       contribution_amount?: number;
       penalty_rate?: number;
       penalty_mode?: 'percentage' | 'fixed';

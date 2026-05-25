@@ -50,6 +50,7 @@ export class PaymentService {
     return (mahber.configuration as {
       contribution_amount?: number;
       payment_frequency?: string;
+      payment_day?: number;
       join_fee_required?: boolean;
       join_fee_amount?: number;
     } | null) ?? {};

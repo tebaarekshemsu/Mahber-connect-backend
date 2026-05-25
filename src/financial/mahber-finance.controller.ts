@@ -18,7 +18,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ChapaService } from './chapa.service';
 import { ConfigService } from '@nestjs/config';
 import { MembershipStatus, Prisma } from '@prisma/client';
-import { addFrequency } from '../common/utils/date.utils';
+import { getNextPaymentDueDate } from '../common/utils/date.utils';
 import { PaymentService } from './payment.service';
 
 @ApiTags('Financial')
@@ -74,6 +74,7 @@ export class MahberFinanceController {
       join_fee_required?: boolean;
       join_fee_amount?: number;
       payment_frequency?: string;
+      payment_day?: number;
     } | null;
 
     const joinFeeRequired = config?.join_fee_required ?? false;
@@ -102,10 +103,10 @@ export class MahberFinanceController {
       // Call Chapa to initialize payment
       const callbackUrl =
         this.config.get<string>('app.callbackUrl') ??
-        ' https://minute-worldcat-flexible-warm.trycloudflare.com/payment/callback';
+        'http://localhost:3007/payment/callback';
       const returnUrl =
         this.config.get<string>('app.returnUrl') ??
-        ' https://minute-worldcat-flexible-warm.trycloudflare.com/payment/return';
+        'http://localhost:3007/payment/return';
 
       this.logger.log(`Chapa init (join) - callbackUrl=${callbackUrl} returnUrl=${returnUrl} tx_ref=${pendingPayment.id}`);
       const chapaResult = await this.chapa.initializePayment({
@@ -150,7 +151,7 @@ export class MahberFinanceController {
       };
     } else {
       // No join fee required: activate membership immediately!
-      const nextPaymentDue = addFrequency(new Date(), config?.payment_frequency);
+      const nextPaymentDue = getNextPaymentDueDate(new Date(), config?.payment_frequency, config?.payment_day);
 
       if (membership) {
         await this.prisma.membership.update({

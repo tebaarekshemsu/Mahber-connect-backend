@@ -20,6 +20,7 @@ export function validConfiguration(): fc.Arbitrary<object> {
   return fc.record({
     contribution_amount: fc.float({ min: 1, max: 10000, noNaN: true }),
     payment_frequency: fc.constantFrom('Weekly', 'Monthly', 'Quarterly'),
+    payment_day: fc.option(fc.integer({ min: 0, max: 31 }), { nil: undefined }),
     penalty_rate: fc.float({ min: 0, max: 100, noNaN: true }),
     penalty_calculation_mode: fc.constantFrom('percentage', 'fixed'),
   });

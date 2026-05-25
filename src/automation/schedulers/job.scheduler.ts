@@ -44,8 +44,8 @@ export class JobScheduler {
     await this.paymentReminderQueue.add({});
   }
 
-  /** Ping the health endpoint every 30 minutes to prevent Render from sleeping */
-  @Cron('*/30 * * * *')
+  /** Ping the health endpoint every 10 minutes to prevent Render from sleeping */
+  @Cron('*/10 * * * *')
   async keepAlive(): Promise<void> {
     const appUrl = this.configService.get<string>('APP_URL');
     if (!appUrl) {
