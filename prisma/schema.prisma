@@ -29,8 +29,22 @@ model User {
   polls            Poll[]
   notifications    Notification[]
   event_invitations EventInvitation[]
+  password_reset_tokens PasswordResetToken[]
 
   @@map("users")
+}
+
+model PasswordResetToken {
+  id         String    @id @default(uuid())
+  user_id    String
+  code_hash  String    // bcrypt-hashed 6-digit code
+  expires_at DateTime
+  used_at    DateTime?
+  created_at DateTime  @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
 }
 
 model Mahber {
@@ -284,6 +298,7 @@ model EventInvitation {
   mahber_id      String
   member_id      String
   status         EventInvitationStatus  @default(Pending)
+  source         String                 @default("admin_invite") // "admin_invite" | "self_register"
   sent_at        DateTime               @default(now())
   responded_at   DateTime?
   channels_used  Json?

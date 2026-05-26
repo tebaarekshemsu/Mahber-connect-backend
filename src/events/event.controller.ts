@@ -199,4 +199,43 @@ export class EventController {
   ) {
     return this.eventService.respondToInvitation(mahberId, eventId, invId, user.sub, dto.action);
   }
+
+  @Post(':eventId/register')
+  @ApiOperation({ summary: 'Register (RSVP) for an event' })
+  @ApiParam({ name: 'id', description: 'Mahber ID' })
+  @ApiParam({ name: 'eventId', description: 'Event ID' })
+  @ApiResponse({ status: 201, description: 'Registered successfully' })
+  @ApiResponse({ status: 409, description: 'Already registered' })
+  @ApiResponse({ status: 400, description: 'Registration closed' })
+  registerForEvent(
+    @Param('id') mahberId: string,
+    @Param('eventId') eventId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.eventService.registerForEvent(mahberId, eventId, user.sub);
+  }
+
+  @Delete(':eventId/register')
+  @ApiOperation({ summary: 'Cancel registration for an event' })
+  @ApiParam({ name: 'id', description: 'Mahber ID' })
+  @ApiParam({ name: 'eventId', description: 'Event ID' })
+  @ApiResponse({ status: 200, description: 'Registration cancelled' })
+  @ApiResponse({ status: 404, description: 'No active registration found' })
+  cancelRegistration(
+    @Param('id') mahberId: string,
+    @Param('eventId') eventId: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.eventService.cancelRegistration(mahberId, eventId, user.sub);
+  }
+
+  @Get(':eventId/registrations')
+  @RequirePermission(PERMISSIONS.CREATE_EVENTS)
+  @ApiOperation({ summary: 'Get registration summary for an event' })
+  @ApiParam({ name: 'id', description: 'Mahber ID' })
+  @ApiParam({ name: 'eventId', description: 'Event ID' })
+  @ApiResponse({ status: 200, description: 'Registrations retrieved' })
+  getRegistrations(@Param('id') mahberId: string, @Param('eventId') eventId: string) {
+    return this.eventService.getRegistrations(mahberId, eventId);
+  }
 }

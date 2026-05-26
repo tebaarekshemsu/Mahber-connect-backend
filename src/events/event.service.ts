@@ -309,6 +309,149 @@ export class EventService {
     });
   }
 
+  async registerForEvent(mahberId: string, eventId: string, memberId: string) {
+    const event = await this.findOne(mahberId, eventId);
+
+    if (event.is_cancelled) {
+      throw new BadRequestException('Cannot register for a cancelled event');
+    }
+
+    if (new Date() >= event.start_time) {
+      throw new BadRequestException('Registration closed — event has already started');
+    }
+
+    const membership = await this.prisma.membership.findFirst({
+      where: { mahber_id: mahberId, member_id: memberId, status: 'Active' },
+    });
+    if (!membership) {
+      throw new ForbiddenException('You must be an active member to register');
+    }
+
+    const existing = await this.prisma.eventInvitation.findUnique({
+      where: { event_id_member_id: { event_id: eventId, member_id: memberId } },
+    });
+    if (existing) {
+      if (existing.status === EventInvitationStatus.Accepted) {
+        throw new ConflictException('You are already registered for this event');
+      }
+      if (existing.status === EventInvitationStatus.Declined) {
+        throw new BadRequestException('You have previously declined this invitation');
+      }
+    }
+
+    const registration = existing
+      ? await this.prisma.eventInvitation.update({
+          where: { id: existing.id },
+          data: {
+            status: EventInvitationStatus.Accepted,
+            source: 'self_register',
+            responded_at: new Date(),
+          },
+        })
+      : await this.prisma.eventInvitation.create({
+          data: {
+            event_id: eventId,
+            mahber_id: mahberId,
+            member_id: memberId,
+            status: EventInvitationStatus.Accepted,
+            source: 'self_register',
+            channels_used: ['in_app'],
+            responded_at: new Date(),
+          },
+        });
+
+    await this.notificationService.sendToUser(
+      memberId,
+      `Registered: ${event.title}`,
+      `You have registered for ${event.title} on ${event.start_time.toLocaleDateString()}.`,
+      { type: 'EVENT_REGISTRATION', id: eventId },
+      NotificationType.event,
+      `/mahbers/${mahberId}/events/${eventId}`,
+    );
+
+    await this.audit.logAuditEvent({
+      mahber_id: mahberId,
+      entity_type: 'event_registration',
+      entity_id: registration.id,
+      action: 'member_registered',
+      actor_id: memberId,
+      new_value: { event_id: eventId, source: 'self_register' },
+      metadata: { event_title: event.title },
+    });
+
+    return registration;
+  }
+
+  async cancelRegistration(mahberId: string, eventId: string, memberId: string) {
+    const registration = await this.prisma.eventInvitation.findUnique({
+      where: { event_id_member_id: { event_id: eventId, member_id: memberId } },
+    });
+
+    if (!registration || registration.status !== EventInvitationStatus.Accepted) {
+      throw new NotFoundException('No active registration found for this event');
+    }
+
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      select: { title: true, start_time: true },
+    });
+
+    await this.prisma.eventInvitation.delete({ where: { id: registration.id } });
+
+    await this.notificationService.sendToUser(
+      memberId,
+      `Registration Cancelled: ${event?.title ?? 'Event'}`,
+      `Your registration for ${event?.title ?? 'the event'} has been cancelled.`,
+      { type: 'EVENT_REGISTRATION', id: eventId },
+      NotificationType.event,
+      `/mahbers/${mahberId}/events/${eventId}`,
+    );
+
+    await this.audit.logAuditEvent({
+      mahber_id: mahberId,
+      entity_type: 'event_registration',
+      entity_id: registration.id,
+      action: 'member_cancelled_registration',
+      actor_id: memberId,
+      old_value: { event_id: eventId },
+      metadata: { event_title: event?.title },
+    });
+
+    return { message: 'Registration cancelled successfully' };
+  }
+
+  async getRegistrations(mahberId: string, eventId: string) {
+    await this.findOne(mahberId, eventId);
+
+    const invitations = await this.prisma.eventInvitation.findMany({
+      where: { event_id: eventId, mahber_id: mahberId },
+      include: {
+        member: { select: { id: true, name: true, phone: true } },
+      },
+      orderBy: { responded_at: 'desc' },
+    });
+
+    const totalMembers = await this.prisma.membership.count({
+      where: { mahber_id: mahberId, status: 'Active' },
+    });
+
+    const accepted = invitations.filter((i) => i.status === EventInvitationStatus.Accepted);
+    const declined = invitations.filter((i) => i.status === EventInvitationStatus.Declined);
+    const pending = invitations.filter((i) => i.status === EventInvitationStatus.Pending);
+
+    return {
+      total_active_members: totalMembers,
+      summary: {
+        registered: accepted.length,
+        declined: declined.length,
+        pending: pending.length,
+        no_response: totalMembers - invitations.length,
+      },
+      registrations: accepted,
+      invitations: { declined, pending },
+    };
+  }
+
   async getMyInvitations(mahberId: string, memberId: string) {
     return this.prisma.eventInvitation.findMany({
       where: {

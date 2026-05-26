@@ -17,6 +17,7 @@ export class NotificationService {
     'EVENT_CREATED',
     'EVENT_CANCELLED',
     'EVENT_INVITATION',
+    'EVENT_REGISTRATION',
     'ANNOUNCEMENT',
     'LOTTERY_RESULT',
   ]);
