@@ -13,6 +13,8 @@ import { ExpenseService } from './expense.service';
 import { ExpenseController } from './expense.controller';
 import { LotteryService } from './lottery.service';
 import { LotteryController } from './lottery.controller';
+import { PayoutService } from './payout.service';
+import { PayoutController } from './payout.controller';
 import { AuditModule } from '../audit/audit.module';
 import { MahberFinanceController } from './mahber-finance.controller';
 import { PaymentCallbackController } from './payment-callback.controller';
@@ -30,8 +32,9 @@ import { PaymentBrowserCallbackController } from './payment-browser-callback.con
     MahberFinanceController,
     PaymentCallbackController,
     PaymentBrowserCallbackController,
+    PayoutController,
   ],
-  providers: [LedgerService, PaymentService, RoleGuard, ChapaService, FineService, ExpenseService, LotteryService, ReceiptService],
-  exports: [LedgerService, ChapaService, PaymentService, FineService, ExpenseService, LotteryService, ReceiptService],
+  providers: [LedgerService, PaymentService, RoleGuard, ChapaService, FineService, ExpenseService, LotteryService, ReceiptService, PayoutService],
+  exports: [LedgerService, ChapaService, PaymentService, FineService, ExpenseService, LotteryService, ReceiptService, PayoutService],
 })
 export class FinancialModule {}

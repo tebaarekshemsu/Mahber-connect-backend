@@ -3,8 +3,10 @@ import {
   Get,
   Param,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RoleGuard } from '../membership/guards/role.guard';
@@ -113,5 +115,50 @@ export class LedgerController {
       totalPayouts,
       netBalance,
     };
+  }
+
+  @UseGuards(RoleGuard)
+  @RequirePermission(PERMISSIONS.MANAGE_FINANCES)
+  @Get('reports/export')
+  async exportReport(
+    @Param('id') mahberId: string,
+    @Res() res: Response,
+    @Query('format') format: string = 'csv',
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('type') type?: string,
+  ) {
+    const start = startDate ? new Date(startDate) : undefined;
+    const end = endDate ? new Date(endDate) : undefined;
+
+    if (format === 'pdf') {
+      const mahber = await this.prisma.mahber.findUnique({ where: { id: mahberId } });
+      const pdfBuffer = await this.ledgerService.exportFinancialReportPdf(
+        mahberId,
+        mahber?.name ?? 'Unknown Mahber',
+        { startDate: start, endDate: end },
+      );
+
+      const filename = `financial-report-${mahberId}-${Date.now()}.pdf`;
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Length': pdfBuffer.length,
+      });
+      res.end(pdfBuffer);
+    } else {
+      const csv = await this.ledgerService.exportCsv(mahberId, {
+        startDate: start,
+        endDate: end,
+        type,
+      });
+
+      const filename = `financial-report-${mahberId}-${Date.now()}.csv`;
+      res.set({
+        'Content-Type': 'text/csv',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+      });
+      res.end(csv);
+    }
   }
 }

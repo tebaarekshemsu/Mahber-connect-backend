@@ -30,6 +30,7 @@ model User {
   notifications    Notification[]
   event_invitations EventInvitation[]
   password_reset_tokens PasswordResetToken[]
+  payouts Payout[]
 
   @@map("users")
 }
@@ -186,6 +187,7 @@ model LedgerEntry {
   fine_id          String?
   lottery_id       String?
   expense_id       String?
+  payout_id        String?
   description      String
   created_at       DateTime        @default(now())
 
@@ -198,6 +200,7 @@ enum TransactionType {
   Fine
   Equb_Payout
   Iddir_Payout
+  Payout
   Refund
   Expense
 }
@@ -258,6 +261,33 @@ model Expense {
 
   @@index([mahber_id])
   @@map("expenses")
+}
+
+enum PayoutCategory {
+  Iddir_Benefit
+  Event_Reimbursement
+  Recurring
+  General
+}
+
+model Payout {
+  id            String         @id @default(uuid())
+  mahber_id     String
+  member_id     String
+  amount        Decimal        @db.Decimal(10, 2)
+  category      PayoutCategory
+  reason        String
+  approved_by   String
+  paid_at       DateTime?
+  created_at    DateTime       @default(now())
+  updated_at    DateTime       @updatedAt
+
+  member User @relation(fields: [member_id], references: [id])
+
+  @@index([mahber_id])
+  @@index([mahber_id, member_id])
+  @@index([mahber_id, category])
+  @@map("payouts")
 }
 
 model Event {
