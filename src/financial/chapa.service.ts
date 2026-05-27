@@ -25,11 +25,21 @@ export interface InitializePaymentParams {
   };
 }
 
+/** Raw bank object returned by Chapa API (GET /v1/banks) */
+export interface ChapaRawBank {
+  id: number;
+  swift: string;
+  name: string;
+  acct_length?: number;
+  is_mobilemoney?: boolean | null;
+}
+
+/** Normalized bank object we return to the client */
 export interface ChapaBank {
   id: number;
-  code: string | number;
+  code: string;
   name: string;
-  swift?: string;
+  swift: string;
   acc_no_length?: number;
   is_mobile_money?: boolean;
 }
@@ -236,7 +246,7 @@ export class ChapaService {
     }
   }
 
-  async getBanks(): Promise<ChapaBank[]> {
+  async getBanks(): Promise<ChapaRawBank[]> {
     if (this.isCircuitOpen()) {
       this.logger.warn('Circuit breaker is open – Chapa banks call rejected');
       throw new ServiceUnavailableException(
@@ -248,7 +258,7 @@ export class ChapaService {
       const response = await this.client.get<{
         status: string;
         message: string;
-        data: ChapaBank[];
+        data: ChapaRawBank[];
       }>('/banks');
 
       this.recordSuccess();

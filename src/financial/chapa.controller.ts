@@ -13,6 +13,14 @@ export class ChapaController {
   @Get('banks')
   @ApiOperation({ summary: 'Get list of supported banks from Chapa' })
   async getBanks() {
-    return this.chapa.getBanks();
+    const banks = await this.chapa.getBanks();
+    return banks.map((b) => ({
+      id: b.id,
+      code: b.swift,
+      name: b.name,
+      swift: b.swift,
+      acc_no_length: b.acct_length,
+      is_mobile_money: b.is_mobilemoney ?? false,
+    }));
   }
 }
