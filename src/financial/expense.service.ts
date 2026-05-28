@@ -96,20 +96,23 @@ export class ExpenseService {
 
     const transferRef = `EXP-${expenseId.slice(0, 8)}-${Date.now()}`;
 
-    // Resolve bank_code: telebirr always uses "TELEBIRR"; for bank type, use stored value
-    const bankCode =
-      expense.recipient_account_type === 'telebirr'
-        ? 'TELEBIRR'
-        : expense.recipient_bank_code;
+    const rawBankCode = expense.recipient_bank_code;
 
-    if (!bankCode) {
+    if (!rawBankCode) {
       throw new BadRequestException(
         `Missing recipient bank code for this expense. Please delete and recreate it with a valid bank.`,
       );
     }
 
+    const bankCode = Number(rawBankCode);
+    if (isNaN(bankCode)) {
+      throw new BadRequestException(
+        `Invalid recipient bank code: "${rawBankCode}". Please recreate the expense with a valid bank.`,
+      );
+    }
+
     this.logger.debug(
-      `Calling Chapa transfer: recipient="${expense.recipient_name}" account="${expense.recipient_account}" bank_code="${bankCode}" amount=${expense.amount}`,
+      `Calling Chapa transfer: recipient="${expense.recipient_name}" account="${expense.recipient_account}" bank_code=${bankCode} amount=${expense.amount}`,
     );
 
     const chapaResult = await this.chapa.initiateTransfer({

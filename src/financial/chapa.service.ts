@@ -49,7 +49,7 @@ export interface InitiateTransferParams {
   account_number: string;
   amount: number;
   reference: string;
-  bank_code?: string;
+  bank_code: number;
 }
 
 export interface InitiateTransferResult {
@@ -206,10 +206,8 @@ export class ChapaService {
         amount: params.amount,
         currency: 'ETB',
         reference: params.reference,
+        bank_code: params.bank_code,
       };
-      if (params.bank_code) {
-        payload.bank_code = params.bank_code;
-      }
 
       this.logger.debug(
         `initiateTransfer payload: ${JSON.stringify({ ...payload, account_number: '***' })}`,
