@@ -121,20 +121,31 @@ export class LotteryService {
     const winnerIndex = Number(seedBigInt % BigInt(eligibleMemberIds.length));
     const winnerId = eligibleMemberIds[winnerIndex];
 
-    // 7. Calculate payout: sum of all Contribution ledger entries minus operational costs (Req 9.5)
-    const contributionSum = await this.prisma.ledgerEntry.aggregate({
-      where: {
-        mahber_id: mahberId,
-        transaction_type: TransactionType.Contribution,
-      },
+    // 7. Calculate payout from current balance (sum of all ledger entries) minus operational costs
+    const balanceSum = await this.prisma.ledgerEntry.aggregate({
+      where: { mahber_id: mahberId },
       _sum: { amount: true },
     });
 
-    const totalContributions = contributionSum._sum.amount ?? new Prisma.Decimal(0);
-    const operationalCost = totalContributions
+    const currentBalance =
+      balanceSum._sum.amount ?? new Prisma.Decimal(0);
+
+    if (currentBalance.lessThanOrEqualTo(0)) {
+      throw new BadRequestException(
+        'Insufficient balance. Current balance is 0 ETB. Cannot execute lottery draw.',
+      );
+    }
+
+    const operationalCost = currentBalance
       .mul(new Prisma.Decimal(operationalCostRate))
       .div(new Prisma.Decimal(100));
-    const payoutAmount = totalContributions.sub(operationalCost);
+    const payoutAmount = currentBalance.sub(operationalCost);
+
+    if (payoutAmount.lessThanOrEqualTo(0)) {
+      throw new BadRequestException(
+        'Operational cost rate is too high — payout would be zero or negative.',
+      );
+    }
 
     // 8. Persist lottery record, payout ledger entry, expense record, and winner flag atomically
     const lottery = await this.prisma.$transaction(async (tx) => {
