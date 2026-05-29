@@ -5,7 +5,7 @@ export const appConfig = registerAs('app', () => ({
   port: parseInt(process.env.PORT || '3000', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
   allowedOrigins: process.env.ALLOWED_ORIGINS?.split(',') || [
-    'https://mahberconnectfrontend.vercel.app',
+    'https://mahber-connect.vercel.app/',
     'http://localhost:3000',
     DEFAULT_URL,
   ],
