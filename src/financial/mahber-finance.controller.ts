@@ -104,11 +104,11 @@ export class MahberFinanceController {
       const callbackUrl =
         this.config.get<string>('app.callbackUrl') ??
         'https://mahber-connect-backend.onrender.com/payment/callback';
-      const returnUrl =
-        this.config.get<string>('app.returnUrl') ??
-        'https://mahber-connect-backend.onrender.com/payment/return';
+      // const returnUrl =
+      //   this.config.get<string>('app.returnUrl') ??
+      //   'https://mahber-connect-backend.onrender.com/payment/return';
 
-      this.logger.log(`Chapa init (join) - callbackUrl=${callbackUrl} returnUrl=${returnUrl} tx_ref=${pendingPayment.id}`);
+      this.logger.log(`Chapa init (join) - callbackUrl=${callbackUrl} tx_ref=${pendingPayment.id}`);
       const chapaResult = await this.chapa.initializePayment({
         tx_ref: pendingPayment.id,
         amount: joinFeeAmount,
@@ -117,7 +117,6 @@ export class MahberFinanceController {
         first_name: firstName,
         last_name: lastName,
         callback_url: callbackUrl,
-        return_url: returnUrl,
         customization: {
           title: `Join ${mahber.name}`,
           description: `Join fee for ${mahber.name}`,

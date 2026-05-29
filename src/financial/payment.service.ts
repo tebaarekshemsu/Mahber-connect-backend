@@ -346,12 +346,11 @@ export class PaymentService {
       first_name: firstName,
       last_name: lastName,
       callback_url: defaultCallbackUrl,
-      return_url: defaultReturnUrl,
       customization: {
         title: 'Mahber Pay',
         description:
           selectedFines.length > 0
-            ? `Payment covering ${payment_type.toLowerCase()} and ${selectedFines.length} fine(s)`
+            ? `Payment covering ${payment_type.toLowerCase()} and ${selectedFines.length} fines`
             : `${payment_type} payment`,
       },
       metadata: {
@@ -774,7 +773,6 @@ export class PaymentService {
       first_name: firstName,
       last_name: lastName,
       callback_url: defaultCallbackUrl,
-      return_url: defaultReturnUrl,
       customization: {
         title: 'MahberConnect Payment Retry',
         description: `${original.payment_type} payment retry`,

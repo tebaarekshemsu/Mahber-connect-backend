@@ -1,14 +1,19 @@
 import { registerAs } from '@nestjs/config';
+const DEFAULT_URL = 'https://mahber-connect-backend.onrender.com';
 
 export const appConfig = registerAs('app', () => ({
   port: parseInt(process.env.PORT || '3000', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
-  allowedOrigins: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
-  url: process.env.APP_URL || 'http://localhost:3000',
+  allowedOrigins: process.env.ALLOWED_ORIGINS?.split(',') || [
+    'https://mahberconnectfrontend.vercel.app',
+    'http://localhost:3000',
+    DEFAULT_URL,
+  ],
+  url: process.env.APP_URL || DEFAULT_URL,
   callbackUrl:
-    process.env.APP_CALLBACK_URL || `${process.env.APP_URL || 'http://localhost:3000'}/payment/callback`,
+    process.env.APP_CALLBACK_URL || `${process.env.APP_URL || DEFAULT_URL}/payment/callback`,
   returnUrl:
-    process.env.APP_RETURN_URL || `${process.env.APP_URL || 'http://localhost:3000'}/payment/return`,
+    process.env.APP_RETURN_URL || `${process.env.APP_URL || DEFAULT_URL}/payment/return`,
 }));
 
 export const databaseConfig = registerAs('database', () => ({

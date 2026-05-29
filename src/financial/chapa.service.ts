@@ -10,7 +10,6 @@ export interface InitializePaymentParams {
   first_name: string;
   last_name: string;
   callback_url: string;
-  return_url: string;
   customization?: {
     title?: string;
     description?: string;
@@ -113,7 +112,6 @@ export class ChapaService {
         first_name: params.first_name,
         last_name: params.last_name,
         callback_url: params.callback_url,
-        return_url: params.return_url,
         customization: params.customization,
         metadata: {
           mahber_id: params.metadata.mahber_id,

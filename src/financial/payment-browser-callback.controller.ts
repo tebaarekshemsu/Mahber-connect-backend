@@ -71,7 +71,19 @@ console.log('*************************************Received payment callback with
 
     // Redirect to frontend callback page for user-facing display
     const frontendUrl = this.config.get<string>('app.url') ?? 'http://localhost:3001';
-    const callbackPageUrl = `${frontendUrl}/en/payment/callback?tx_ref=${ref ?? ''}&status=${status ?? 'unknown'}`;
+
+    // Look up mahber_id from the payment record so the frontend can link back
+    let mahberId = '';
+    if (ref) {
+      try {
+        const payment = await this.paymentService.findByTxRef(ref);
+        mahberId = payment.mahber_id;
+      } catch {
+        // non-critical — frontend will fall back to /dashboard
+      }
+    }
+
+    const callbackPageUrl = `${frontendUrl}/en/payment/callback?tx_ref=${ref ?? ''}&status=${status ?? 'unknown'}&mahber_id=${mahberId}`;
 
     this.logger.log(
       `[CHAPA CALLBACK] Redirecting to frontend: ${callbackPageUrl}`,
