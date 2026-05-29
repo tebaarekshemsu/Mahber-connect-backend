@@ -10,6 +10,7 @@ interface QrPayload {
 }
 
 interface VerifiedQrPayload extends QrPayload {
+  member_id?: string;
   exp?: number;
   iat?: number;
 }

@@ -42,8 +42,11 @@ export class AttendanceService {
       throw err;
     }
 
+    // Use member_id from the QR payload (personal QR) or fall back to the requesting user
+    const targetMemberId = payload.member_id ?? memberId;
+
     this.logger.debug(
-      `QR validated: event_id=${payload.event_id} mahber_id=${payload.mahber_id} exp=${payload.exp ?? 'n/a'}`,
+      `QR validated: event_id=${payload.event_id} mahber_id=${payload.mahber_id} member_id=${targetMemberId} exp=${payload.exp ?? 'n/a'}`,
     );
 
     if (payload.event_id !== eventId) {
@@ -62,7 +65,7 @@ export class AttendanceService {
     // Verify member is Active and belongs to this mahber
     const membership = await this.prisma.membership.findFirst({
       where: {
-        member_id: memberId,
+        member_id: targetMemberId,
         mahber_id: mahberId,
         status: MembershipStatus.Active,
       },
@@ -74,7 +77,7 @@ export class AttendanceService {
 
     // Prevent duplicate attendance
     const existing = await this.prisma.attendance.findUnique({
-      where: { event_id_member_id: { event_id: eventId, member_id: memberId } },
+      where: { event_id_member_id: { event_id: eventId, member_id: targetMemberId } },
     });
 
     if (existing) {
@@ -84,12 +87,12 @@ export class AttendanceService {
     const attendance = await this.prisma.attendance.create({
       data: {
         event_id: eventId,
-        member_id: memberId,
+        member_id: targetMemberId,
         mahber_id: mahberId,
       },
     });
 
-    this.logger.log(`Attendance recorded: event=${eventId} member=${memberId} mahber=${mahberId}`);
+    this.logger.log(`Attendance recorded: event=${eventId} member=${targetMemberId} mahber=${mahberId}`);
 
     return attendance;
   }
