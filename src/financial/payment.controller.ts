@@ -6,12 +6,15 @@ import {
   Body,
   Query,
   UseGuards,
+  Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { PaymentService } from './payment.service';
+import { ReceiptService } from './receipt.service';
 import { InitiatePaymentDto } from './dto/initiate-payment.dto';
 import { PaymentStatus, PaymentType } from '@prisma/client';
 
@@ -20,7 +23,10 @@ import { PaymentStatus, PaymentType } from '@prisma/client';
 @UseGuards(JwtAuthGuard)
 @Controller('mahbers/:id/payments')
 export class PaymentController {
-  constructor(private readonly paymentService: PaymentService) {}
+  constructor(
+    private readonly paymentService: PaymentService,
+    private readonly receiptService: ReceiptService,
+  ) {}
 
   @Post('initiate')
   @ApiOperation({ summary: 'Initiate a payment for a mahber member' })
@@ -89,5 +95,22 @@ export class PaymentController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.paymentService.retryPayment(mahberId, paymentId, user.sub);
+  }
+
+  @Get(':paymentId/receipt')
+  @ApiOperation({ summary: 'Download payment receipt as PDF' })
+  async downloadReceipt(
+    @Param('id') mahberId: string,
+    @Param('paymentId') paymentId: string,
+    @CurrentUser() user: JwtPayload,
+    @Res() res: Response,
+  ) {
+    const pdfBuffer = await this.receiptService.generateReceiptBuffer(mahberId, paymentId);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="receipt-${paymentId.slice(0, 8)}.pdf"`,
+      'Content-Length': pdfBuffer.length,
+    });
+    res.end(pdfBuffer);
   }
 }
