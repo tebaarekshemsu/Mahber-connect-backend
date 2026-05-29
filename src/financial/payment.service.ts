@@ -7,7 +7,13 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import * as crypto from 'crypto';
-import { Prisma, PaymentStatus, MembershipStatus, TransactionType, PaymentType } from '@prisma/client';
+import {
+  Prisma,
+  PaymentStatus,
+  MembershipStatus,
+  TransactionType,
+  PaymentType,
+} from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { ChapaService } from './chapa.service';
@@ -47,13 +53,15 @@ export class PaymentService {
   ) {}
 
   private parseMahberConfiguration(mahber: { configuration: Prisma.JsonValue | null }) {
-    return (mahber.configuration as {
-      contribution_amount?: number;
-      payment_frequency?: string;
-      payment_day?: number;
-      join_fee_required?: boolean;
-      join_fee_amount?: number;
-    } | null) ?? {};
+    return (
+      (mahber.configuration as {
+        contribution_amount?: number;
+        payment_frequency?: string;
+        payment_day?: number;
+        join_fee_required?: boolean;
+        join_fee_amount?: number;
+      } | null) ?? {}
+    );
   }
 
   private async getMembershipContext(mahberId: string, memberId: string) {
@@ -141,7 +149,9 @@ export class PaymentService {
     const joinFeeAmount = Number(mahberConfig.join_fee_amount ?? 0);
     const now = new Date();
 
-    const contributionDueDate = membership.next_payment_due ? new Date(membership.next_payment_due) : null;
+    const contributionDueDate = membership.next_payment_due
+      ? new Date(membership.next_payment_due)
+      : null;
     const contributionDue =
       membership.status === MembershipStatus.Active &&
       contributionAmount > 0 &&
@@ -149,21 +159,22 @@ export class PaymentService {
       contributionDueDate.getTime() <= now.getTime();
 
     const contribution_due = contributionDue ? contributionAmount : null;
-    const contribution_due_date = contributionDue ? contributionDueDate?.toISOString() ?? null : null;
+    const contribution_due_date = contributionDue
+      ? (contributionDueDate?.toISOString() ?? null)
+      : null;
 
     const pending_fines = fines.map((fine) => ({
       id: fine.id,
       amount: fine.amount.toNumber(),
-      reason:
-        fine.violation_type === 'MISSED_ATTENDANCE'
-          ? 'Missed attendance'
-          : 'Missed payment',
+      reason: fine.violation_type === 'MISSED_ATTENDANCE' ? 'Missed attendance' : 'Missed payment',
       issued_at: fine.created_at.toISOString(),
     }));
 
     const totalOutstandingBase =
       (contribution_due ?? 0) +
-      (membership.status === MembershipStatus.Payment_Required && joinFeeRequired ? joinFeeAmount : 0) +
+      (membership.status === MembershipStatus.Payment_Required && joinFeeRequired
+        ? joinFeeAmount
+        : 0) +
       pending_fines.reduce((sum, item) => sum + item.amount, 0);
 
     const latestPending = pendingPayments[0];
@@ -210,16 +221,15 @@ export class PaymentService {
     });
   }
 
-  async initiatePayment(
-    mahberId: string,
-    memberId: string,
-    dto: InitiatePaymentDto,
-  ) {
+  async initiatePayment(mahberId: string, memberId: string, dto: InitiatePaymentDto) {
     const { membership, mahber, user } = await this.getMembershipContext(mahberId, memberId);
     const mahberConfig = this.parseMahberConfiguration(mahber);
     const now = new Date();
 
-    if (membership.status !== MembershipStatus.Active && membership.status !== MembershipStatus.Payment_Required) {
+    if (
+      membership.status !== MembershipStatus.Active &&
+      membership.status !== MembershipStatus.Payment_Required
+    ) {
       throw new BadRequestException('Only active members can initiate payments');
     }
 
@@ -237,32 +247,37 @@ export class PaymentService {
       orderBy: { created_at: 'asc' },
     });
 
-    const fineIds = (dto.fine_ids && dto.fine_ids.length > 0 ? dto.fine_ids : outstandingFines.map((fine) => fine.id))
-      .filter((fineId, index, self) => self.indexOf(fineId) === index);
+    const fineIds = (
+      dto.fine_ids && dto.fine_ids.length > 0
+        ? dto.fine_ids
+        : outstandingFines.map((fine) => fine.id)
+    ).filter((fineId, index, self) => self.indexOf(fineId) === index);
 
-    const selectedFines = fineIds.length > 0
-      ? outstandingFines.filter((fine) => fineIds.includes(fine.id))
-      : [];
+    const selectedFines =
+      fineIds.length > 0 ? outstandingFines.filter((fine) => fineIds.includes(fine.id)) : [];
 
     if (fineIds.length > 0 && selectedFines.length !== fineIds.length) {
       throw new BadRequestException('One or more fines are invalid or already resolved');
     }
 
-    const contributionDueDate = membership.next_payment_due ? new Date(membership.next_payment_due) : null;
+    const contributionDueDate = membership.next_payment_due
+      ? new Date(membership.next_payment_due)
+      : null;
     const contributionDue =
       membership.status === MembershipStatus.Active &&
       contributionAmount > 0 &&
       contributionDueDate !== null &&
       contributionDueDate.getTime() <= now.getTime();
 
-    const joinFeeDue = membership.status === MembershipStatus.Payment_Required && joinFeeRequired && joinFeeAmount > 0;
+    const joinFeeDue =
+      membership.status === MembershipStatus.Payment_Required &&
+      joinFeeRequired &&
+      joinFeeAmount > 0;
 
     const contributionCycleEnd = contributionDueDate
       ? addFrequency(contributionDueDate, mahberConfig.payment_frequency)
       : null;
-    const joinFeeCycleEnd = joinFeeDue
-      ? addFrequency(now, mahberConfig.payment_frequency)
-      : null;
+    const joinFeeCycleEnd = joinFeeDue ? addFrequency(now, mahberConfig.payment_frequency) : null;
 
     const pendingPayments = await this.getPendingPayments(mahberId, memberId);
 
@@ -294,9 +309,7 @@ export class PaymentService {
 
     const fineTotal = selectedFines.reduce((sum, fine) => sum + fine.amount.toNumber(), 0);
     const amount =
-      (contributionDue ? contributionAmount : 0) +
-      (joinFeeDue ? joinFeeAmount : 0) +
-      fineTotal;
+      (contributionDue ? contributionAmount : 0) + (joinFeeDue ? joinFeeAmount : 0) + fineTotal;
 
     if (amount <= 0) {
       throw new BadRequestException('You have no outstanding payments at this time.');
@@ -412,29 +425,22 @@ export class PaymentService {
         payment_method: verification.payment_method,
         created_at: verification.created_at,
       });
-      this.logger.log(`Reconciliation complete: tx_ref=${txRef} processed with status=${verification.status}`);
+      this.logger.log(
+        `Reconciliation complete: tx_ref=${txRef} processed with status=${verification.status}`,
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const stack = error instanceof Error ? error.stack : '';
-      this.logger.error(
-        `Reconciliation failed for tx_ref=${txRef}: ${message} stack=${stack}`,
-      );
+      this.logger.error(`Reconciliation failed for tx_ref=${txRef}: ${message} stack=${stack}`);
       throw error;
     }
   }
 
   // ─── Task 8.3 ────────────────────────────────────────────────────────────────
 
-  verifyWebhookSignature(
-    rawBody: Buffer | string,
-    signature: string,
-    secret: string,
-  ): boolean {
+  verifyWebhookSignature(rawBody: Buffer | string, signature: string, secret: string): boolean {
     const body = Buffer.isBuffer(rawBody) ? rawBody.toString('utf8') : rawBody;
-    const computed = crypto
-      .createHmac('sha256', secret)
-      .update(body)
-      .digest('hex');
+    const computed = crypto.createHmac('sha256', secret).update(body).digest('hex');
 
     const isValid = crypto.timingSafeEqual(
       Buffer.from(computed, 'hex'),
@@ -475,10 +481,7 @@ export class PaymentService {
     );
 
     // Idempotency: skip already-terminal payments
-    if (
-      payment.status === PaymentStatus.Completed ||
-      payment.status === PaymentStatus.Failed
-    ) {
+    if (payment.status === PaymentStatus.Completed || payment.status === PaymentStatus.Failed) {
       this.logger.log(`Webhook duplicate for tx_ref=${tx_ref}, status=${payment.status} – skipped`);
       return;
     }
@@ -549,7 +552,10 @@ export class PaymentService {
               next_payment_due: payment.period_end,
             },
           });
-        } else if (membership.status === MembershipStatus.Payment_Required && payment.payment_type === PaymentType.JoinFee) {
+        } else if (
+          membership.status === MembershipStatus.Payment_Required &&
+          payment.payment_type === PaymentType.JoinFee
+        ) {
           await tx.membership.update({
             where: { id: membership.id },
             data: {
@@ -583,8 +589,12 @@ export class PaymentService {
           status: normalizedStatus === 'expired' ? PaymentStatus.Expired : PaymentStatus.Failed,
         },
       });
-      this.logger.log(`Payment updated to ${normalizedStatus === 'expired' ? 'Expired' : 'Failed'} for tx_ref=${tx_ref}`);
-      this.logger.log(`Webhook processed: tx_ref=${tx_ref} → ${normalizedStatus === 'expired' ? 'Expired' : 'Failed'}`);
+      this.logger.log(
+        `Payment updated to ${normalizedStatus === 'expired' ? 'Expired' : 'Failed'} for tx_ref=${tx_ref}`,
+      );
+      this.logger.log(
+        `Webhook processed: tx_ref=${tx_ref} → ${normalizedStatus === 'expired' ? 'Expired' : 'Failed'}`,
+      );
 
       await this.audit.logAuditEvent({
         mahber_id: payment.mahber_id,
@@ -641,9 +651,7 @@ export class PaymentService {
     }
 
     if (search) {
-      where.OR = [
-        { tx_ref: { contains: search, mode: 'insensitive' } },
-      ];
+      where.OR = [{ tx_ref: { contains: search, mode: 'insensitive' } }];
     }
 
     if (startDate || endDate) {
@@ -743,9 +751,7 @@ export class PaymentService {
     });
 
     const backoffMs = Math.min(1000 * Math.pow(2, retryCount), 30_000);
-    this.logger.log(
-      `Retry #${retryCount + 1} for payment ${paymentId}, backoff=${backoffMs}ms`,
-    );
+    this.logger.log(`Retry #${retryCount + 1} for payment ${paymentId}, backoff=${backoffMs}ms`);
 
     const timestamp = Date.now();
     const random = crypto.randomBytes(4).toString('hex');
@@ -797,14 +803,53 @@ export class PaymentService {
       },
     });
 
-    this.logger.log(
-      `Retry payment created: id=${retryPayment.id} tx_ref=${tx_ref}`,
-    );
+    this.logger.log(`Retry payment created: id=${retryPayment.id} tx_ref=${tx_ref}`);
 
     return {
       checkout_url: chapaResult.checkout_url,
       payment_id: retryPayment.id,
       tx_ref,
     };
+  }
+
+  // ─── Task 8.7: Admin-initiated payment round ──────────────────────────────────
+
+  /**
+   * Admin-initiated payment round: sets all active members' next_payment_due to the
+   * specified date (or now), making their contribution due for manual payment.
+   */
+  async initiatePaymentRound(mahberId: string, executedBy: string, dueDate?: string) {
+    const due = dueDate ? new Date(dueDate) : new Date();
+
+    const activeCount = await this.prisma.membership.count({
+      where: { mahber_id: mahberId, status: 'Active' },
+    });
+
+    if (activeCount === 0) {
+      throw new BadRequestException('No active members to initiate a payment round');
+    }
+
+    await this.prisma.membership.updateMany({
+      where: { mahber_id: mahberId, status: 'Active' },
+      data: { next_payment_due: due },
+    });
+
+    this.audit.logAuditEvent({
+      mahber_id: mahberId,
+      entity_type: 'payment',
+      entity_id: mahberId,
+      action: 'payment_round_initiated',
+      actor_id: executedBy,
+      new_value: {
+        due_date: due.toISOString(),
+        member_count: activeCount,
+      },
+    });
+
+    this.logger.log(
+      `Payment round initiated mahber=${mahberId} by=${executedBy} due=${due.toISOString()} members=${activeCount}`,
+    );
+
+    return { updatedCount: activeCount, dueDate: due.toISOString() };
   }
 }

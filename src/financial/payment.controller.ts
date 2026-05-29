@@ -1,21 +1,16 @@
-import {
-  Controller,
-  Post,
-  Get,
-  Param,
-  Body,
-  Query,
-  UseGuards,
-  Res,
-} from '@nestjs/common';
+import { Controller, Post, Get, Param, Body, Query, UseGuards, Res } from '@nestjs/common';
 import { Response } from 'express';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RoleGuard } from '../membership/guards/role.guard';
+import { RequirePermission } from '../membership/decorators/require-permission.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
+import { PERMISSIONS } from '../membership/rbac/permissions';
 import { PaymentService } from './payment.service';
 import { ReceiptService } from './receipt.service';
 import { InitiatePaymentDto } from './dto/initiate-payment.dto';
+import { InitiatePaymentRoundDto } from './dto/initiate-payment-round.dto';
 import { PaymentStatus, PaymentType } from '@prisma/client';
 
 @ApiTags('Payments')
@@ -40,10 +35,7 @@ export class PaymentController {
 
   @Get('outstanding')
   @ApiOperation({ summary: 'Get outstanding obligations for the current member' })
-  getOutstanding(
-    @Param('id') mahberId: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  getOutstanding(@Param('id') mahberId: string, @CurrentUser() user: JwtPayload) {
     return this.paymentService.getOutstandingObligations(mahberId, user.sub);
   }
 
@@ -95,6 +87,20 @@ export class PaymentController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.paymentService.retryPayment(mahberId, paymentId, user.sub);
+  }
+
+  @Post('initiate-round')
+  @UseGuards(RoleGuard)
+  @RequirePermission(PERMISSIONS.MANAGE_FINANCES)
+  @ApiOperation({
+    summary: 'Initiate a payment round for all active members (Admin/Treasurer only)',
+  })
+  initiatePaymentRound(
+    @Param('id') mahberId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: InitiatePaymentRoundDto,
+  ) {
+    return this.paymentService.initiatePaymentRound(mahberId, user.sub, dto.due_date);
   }
 
   @Get(':paymentId/receipt')
