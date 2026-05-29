@@ -269,23 +269,26 @@ export class PaymentService {
     for (const pending of pendingPayments) {
       const pendingFineIds = this.extractFineIds(pending.fine_ids);
 
-      if (contributionDue && pending.payment_type === PaymentType.Contribution) {
-        const sameCycle =
-          contributionCycleEnd === null ||
+      const sameCycleContribution =
+        contributionDue &&
+        pending.payment_type === PaymentType.Contribution &&
+        (contributionCycleEnd === null ||
           pending.period_end === null ||
-          pending.period_end.getTime() === contributionCycleEnd.getTime();
+          pending.period_end.getTime() === contributionCycleEnd.getTime());
 
-        if (sameCycle) {
-          throw new ConflictException('You already have a pending contribution payment. Please wait for it to complete.');
-        }
-      }
+      const sameJoinFee = joinFeeDue && pending.payment_type === PaymentType.JoinFee;
 
-      if (joinFeeDue && pending.payment_type === PaymentType.JoinFee) {
-        throw new ConflictException('You already have a pending join fee payment. Please wait for it to complete.');
-      }
+      const sameFines =
+        selectedFines.length > 0 &&
+        pendingFineIds.some((pendingFineId) =>
+          selectedFines.some((fine) => fine.id === pendingFineId),
+        );
 
-      if (selectedFines.length > 0 && pendingFineIds.some((pendingFineId) => selectedFines.some((fine) => fine.id === pendingFineId))) {
-        throw new ConflictException('This fine is already being processed.');
+      if (sameCycleContribution || sameJoinFee || sameFines) {
+        await this.prisma.payment.update({
+          where: { id: pending.id },
+          data: { status: PaymentStatus.Expired },
+        });
       }
     }
 
@@ -314,10 +317,10 @@ export class PaymentService {
     const defaultReturnUrl =
       this.config.get<string>('app.returnUrl') ?? 'https://mahberconnect.com/payment/return';
 
-    const email = user?.email ?? `${memberId.slice(0, 8)}@mahberconnect.com`;
     const nameParts = (user?.name || 'Unknown User').split(' ');
     const firstName = nameParts[0] || 'Unknown';
     const lastName = nameParts.slice(1).join(' ') || 'User';
+    const email = 'tebarek29@gmail.com';
     const sanitizedEmail = email.trim().slice(0, 50);
 
     const pendingPayment = await this.prisma.payment.create({
@@ -758,7 +761,7 @@ export class PaymentService {
     const nameParts = (user?.user?.name ?? 'Unknown User').split(' ');
     const firstName = nameParts[0] ?? 'Unknown';
     const lastName = nameParts.slice(1).join(' ') || 'User';
-    const email = user?.user?.email ?? `${memberId}@mahberconnect.com`;
+    const email = 'tebarek29@gmail.com';
 
     const defaultCallbackUrl = 'https://mahberconnect.com/payment/callback';
     const defaultReturnUrl = 'https://mahberconnect.com/payment/return';

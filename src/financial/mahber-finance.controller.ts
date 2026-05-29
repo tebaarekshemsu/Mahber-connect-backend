@@ -98,7 +98,7 @@ export class MahberFinanceController {
       const nameParts = (userRecord.name || 'Unknown User').split(' ');
       const firstName = nameParts[0] || 'Unknown';
       const lastName = nameParts.slice(1).join(' ') || 'User';
-      const email = userRecord.email || `${userId}@mahberconnect.com`;
+      const email = 'tebarek29@gmail.com';
 
       // Call Chapa to initialize payment
       const callbackUrl =

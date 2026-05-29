@@ -15,8 +15,8 @@ export class AuditController {
   constructor(private readonly auditService: AuditService) {}
 
   @Get()
-  @RequirePermission('manage_members')
-  @ApiOperation({ summary: 'Get audit trail for a mahber (admin only)' })
+  @RequirePermission('view_reports')
+  @ApiOperation({ summary: 'Get audit trail for a mahber' })
   findAll(@Param('id') mahberId: string, @Query() query: QueryAuditDto) {
     return this.auditService.findAll(
       mahberId,
