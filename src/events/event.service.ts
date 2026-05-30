@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -9,7 +10,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { NotificationService } from '../communication/notification.service';
-import { NotificationType } from '@prisma/client';
+import { AuditService } from '../audit/audit.service';
+import { InvitationResponseAction } from './dto/respond-invitation.dto';
+import { NotificationType, EventInvitationStatus } from '@prisma/client';
 
 @Injectable()
 export class EventService {
@@ -18,6 +21,7 @@ export class EventService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: NotificationService,
+    private readonly audit: AuditService,
   ) {}
 
   async create(mahberId: string, actorId: string, dto: CreateEventDto) {
@@ -142,5 +146,191 @@ export class EventService {
     );
 
     return cancelled;
+  }
+
+  async sendInvitations(
+    mahberId: string,
+    eventId: string,
+    actorId: string,
+    memberIds: string[],
+  ) {
+    const event = await this.findOne(mahberId, eventId);
+
+    if (event.is_cancelled) {
+      throw new BadRequestException('Cannot send invitations for a cancelled event');
+    }
+
+    const existingMemberships = await this.prisma.membership.findMany({
+      where: {
+        mahber_id: mahberId,
+        member_id: { in: memberIds },
+        status: 'Active',
+      },
+      select: { member_id: true, user: { select: { name: true } } },
+    });
+
+    if (existingMemberships.length === 0) {
+      throw new BadRequestException('No valid active members found');
+    }
+
+    const validMemberIds = existingMemberships.map((m) => m.member_id);
+
+    const existingInvitations = await this.prisma.eventInvitation.findMany({
+      where: {
+        event_id: eventId,
+        member_id: { in: validMemberIds },
+      },
+      select: { member_id: true, status: true },
+    });
+
+    const alreadyInvited = new Set(existingInvitations.map((i) => i.member_id));
+    const newMemberIds = validMemberIds.filter((id) => !alreadyInvited.has(id));
+
+    if (newMemberIds.length === 0) {
+      throw new ConflictException('All selected members have already been invited');
+    }
+
+    const created = await this.prisma.$transaction(
+      newMemberIds.map((memberId) =>
+        this.prisma.eventInvitation.create({
+          data: {
+            event_id: eventId,
+            mahber_id: mahberId,
+            member_id: memberId,
+            channels_used: ['in_app', 'fcm', 'email', 'sms'],
+          },
+        }),
+      ),
+    );
+
+    for (const member of existingMemberships) {
+      if (!newMemberIds.includes(member.member_id)) continue;
+      await this.notificationService.sendToUser(
+        member.member_id,
+        `Event Invitation: ${event.title}`,
+        `You have been invited to ${event.title} at ${event.location} on ${event.start_time.toLocaleDateString()}.`,
+        { type: 'EVENT_INVITATION', id: event.id },
+        NotificationType.event,
+        `/mahbers/${mahberId}/events/${eventId}`,
+      );
+    }
+
+    await this.audit.logAuditEvent({
+      mahber_id: mahberId,
+      entity_type: 'event_invitation',
+      entity_id: eventId,
+      action: 'invitations_sent',
+      actor_id: actorId,
+      new_value: { member_ids: newMemberIds, total: newMemberIds.length },
+      metadata: { event_title: event.title },
+    });
+
+    this.logger.log(
+      `Invitations sent for event ${eventId}: ${newMemberIds.length} members in mahber ${mahberId}`,
+    );
+
+    return {
+      invited: newMemberIds.length,
+      already_invited: validMemberIds.length - newMemberIds.length,
+      invalid_members: memberIds.length - validMemberIds.length,
+      invitations: created,
+    };
+  }
+
+  async respondToInvitation(
+    mahberId: string,
+    eventId: string,
+    invitationId: string,
+    memberId: string,
+    action: InvitationResponseAction,
+  ) {
+    const invitation = await this.prisma.eventInvitation.findUnique({
+      where: { id: invitationId },
+    });
+
+    if (!invitation || invitation.event_id !== eventId || invitation.mahber_id !== mahberId) {
+      throw new NotFoundException('Invitation not found');
+    }
+
+    if (invitation.member_id !== memberId) {
+      throw new ForbiddenException('This invitation belongs to another member');
+    }
+
+    if (invitation.status !== EventInvitationStatus.Pending) {
+      throw new BadRequestException('Invitation has already been responded to');
+    }
+
+    const newStatus =
+      action === InvitationResponseAction.ACCEPT
+        ? EventInvitationStatus.Accepted
+        : EventInvitationStatus.Declined;
+
+    const updated = await this.prisma.eventInvitation.update({
+      where: { id: invitationId },
+      data: { status: newStatus, responded_at: new Date() },
+    });
+
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      select: { title: true },
+    });
+
+    await this.notificationService.sendToUser(
+      memberId,
+      `Invitation ${action === InvitationResponseAction.ACCEPT ? 'Accepted' : 'Declined'}`,
+      `You have ${action === InvitationResponseAction.ACCEPT ? 'accepted' : 'declined'} the invitation to ${event?.title ?? 'the event'}.`,
+      { type: 'INVITATION_RESPONSE', id: eventId },
+      NotificationType.info,
+      `/mahbers/${mahberId}/events/${eventId}`,
+    );
+
+    await this.audit.logAuditEvent({
+      mahber_id: mahberId,
+      entity_type: 'event_invitation',
+      entity_id: invitationId,
+      action: `invitation_${newStatus.toLowerCase()}`,
+      actor_id: memberId,
+      old_value: { status: EventInvitationStatus.Pending },
+      new_value: { status: newStatus },
+    });
+
+    return updated;
+  }
+
+  async getInvitationsForEvent(mahberId: string, eventId: string) {
+    await this.findOne(mahberId, eventId);
+
+    return this.prisma.eventInvitation.findMany({
+      where: { event_id: eventId, mahber_id: mahberId },
+      include: {
+        member: { select: { id: true, name: true, phone: true } },
+      },
+      orderBy: { sent_at: 'desc' },
+    });
+  }
+
+  async getMyInvitations(mahberId: string, memberId: string) {
+    return this.prisma.eventInvitation.findMany({
+      where: {
+        mahber_id: mahberId,
+        member_id: memberId,
+        status: EventInvitationStatus.Pending,
+      },
+      include: {
+        event: {
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            event_type: true,
+            start_time: true,
+            end_time: true,
+            location: true,
+            is_mandatory: true,
+          },
+        },
+      },
+      orderBy: { sent_at: 'desc' },
+    });
   }
 }

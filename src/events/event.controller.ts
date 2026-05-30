@@ -33,6 +33,8 @@ import { QrService } from './qr.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
+import { SendInvitationsDto } from './dto/send-invitations.dto';
+import { RespondInvitationDto } from './dto/respond-invitation.dto';
 
 @ApiTags('Events')
 @ApiBearerAuth()
@@ -152,5 +154,49 @@ export class EventController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.eventService.cancel(mahberId, eventId, user.sub);
+  }
+
+  @Post(':eventId/invitations')
+  @RequirePermission(PERMISSIONS.CREATE_EVENTS)
+  @ApiOperation({ summary: 'Send event invitations to specific members' })
+  @ApiParam({ name: 'id', description: 'Mahber ID' })
+  @ApiParam({ name: 'eventId', description: 'Event ID' })
+  @ApiResponse({ status: 201, description: 'Invitations sent successfully' })
+  @ApiResponse({ status: 409, description: 'All selected members already invited' })
+  sendInvitations(
+    @Param('id') mahberId: string,
+    @Param('eventId') eventId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: SendInvitationsDto,
+  ) {
+    return this.eventService.sendInvitations(mahberId, eventId, user.sub, dto.member_ids);
+  }
+
+  @Get(':eventId/invitations')
+  @RequirePermission(PERMISSIONS.CREATE_EVENTS)
+  @ApiOperation({ summary: 'Get all invitations for an event' })
+  @ApiParam({ name: 'id', description: 'Mahber ID' })
+  @ApiParam({ name: 'eventId', description: 'Event ID' })
+  @ApiResponse({ status: 200, description: 'Invitations retrieved successfully' })
+  getInvitations(@Param('id') mahberId: string, @Param('eventId') eventId: string) {
+    return this.eventService.getInvitationsForEvent(mahberId, eventId);
+  }
+
+  @Put(':eventId/invitations/:invId/respond')
+  @ApiOperation({ summary: 'Respond to an event invitation (accept/decline)' })
+  @ApiParam({ name: 'id', description: 'Mahber ID' })
+  @ApiParam({ name: 'eventId', description: 'Event ID' })
+  @ApiParam({ name: 'invId', description: 'Invitation ID' })
+  @ApiResponse({ status: 200, description: 'Response recorded successfully' })
+  @ApiResponse({ status: 403, description: 'Invitation belongs to another member' })
+  @ApiResponse({ status: 404, description: 'Invitation not found' })
+  respondToInvitation(
+    @Param('id') mahberId: string,
+    @Param('eventId') eventId: string,
+    @Param('invId') invId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: RespondInvitationDto,
+  ) {
+    return this.eventService.respondToInvitation(mahberId, eventId, invId, user.sub, dto.action);
   }
 }

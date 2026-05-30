@@ -16,6 +16,7 @@ export class NotificationService {
     'PAYMENT_OVERDUE',
     'EVENT_CREATED',
     'EVENT_CANCELLED',
+    'EVENT_INVITATION',
     'ANNOUNCEMENT',
     'LOTTERY_RESULT',
   ]);
