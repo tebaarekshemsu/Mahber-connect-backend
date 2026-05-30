@@ -619,7 +619,6 @@ export class EventService {
       where: {
         mahber_id: mahberId,
         member_id: memberId,
-        status: EventInvitationStatus.Pending,
       },
       include: {
         event: {
