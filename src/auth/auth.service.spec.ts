@@ -2,8 +2,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { NotificationType } from '@prisma/client';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { SmsService } from '../communication/sms.service';
+import { NotificationService } from '../communication/notification.service';
 
 jest.mock('bcrypt');
 
@@ -18,8 +21,17 @@ const mockJwtService = {
   sign: jest.fn(),
 };
 
+const mockSmsService = {
+  send: jest.fn(),
+};
+
+const mockNotificationService = {
+  sendToUser: jest.fn(),
+};
+
 describe('AuthService', () => {
   let service: AuthService;
+  let notificationService: NotificationService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -27,10 +39,13 @@ describe('AuthService', () => {
         AuthService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: JwtService, useValue: mockJwtService },
+        { provide: SmsService, useValue: mockSmsService },
+        { provide: NotificationService, useValue: mockNotificationService },
       ],
     }).compile();
 
     service = module.get<AuthService>(AuthService);
+    notificationService = module.get<NotificationService>(NotificationService);
     jest.clearAllMocks();
   });
 
@@ -53,6 +68,13 @@ describe('AuthService', () => {
 
       expect(result).not.toHaveProperty('password');
       expect(result.phone).toBe(dto.phone);
+      expect(notificationService.sendToUser).toHaveBeenCalledWith(
+        'u1',
+        'Welcome to MahberConnect!',
+        expect.stringContaining('Test User'),
+        undefined,
+        NotificationType.info,
+      );
     });
 
     it('throws ConflictException when phone already exists', async () => {

@@ -8,6 +8,7 @@ import { RoleGuard } from '../membership/guards/role.guard';
 import { EventAccessGuard } from './guards/event-access.guard';
 import { AllowEventHost } from './decorators/allow-event-host.decorator';
 import { RequirePermission } from '../membership/decorators/require-permission.decorator';
+import { RequireAnyPermission } from '../membership/decorators/require-any-permission.decorator';
 import { PERMISSIONS } from '../membership/rbac/permissions';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
@@ -57,6 +58,9 @@ export class AttendanceController {
   }
 
   @Get('attendance')
+  @UseGuards(EventAccessGuard)
+  @RequireAnyPermission(PERMISSIONS.VIEW_REPORTS, PERMISSIONS.CREATE_EVENTS)
+  @AllowEventHost()
   @ApiOperation({ summary: 'List attendance records for the event' })
   @ApiParam({ name: 'id', description: 'Mahber ID' })
   @ApiParam({ name: 'eventId', description: 'Event ID' })
@@ -157,7 +161,7 @@ export class AttendanceController {
 
   @Get('attendance/analytics')
   @UseGuards(EventAccessGuard)
-  @RequirePermission(PERMISSIONS.CREATE_EVENTS)
+  @RequireAnyPermission(PERMISSIONS.VIEW_REPORTS, PERMISSIONS.CREATE_EVENTS)
   @AllowEventHost()
   @ApiOperation({ summary: 'Get attendance analytics for an event' })
   @ApiParam({ name: 'id', description: 'Mahber ID' })
@@ -169,7 +173,7 @@ export class AttendanceController {
 
   @Get('attendance/trends')
   @UseGuards(EventAccessGuard)
-  @RequirePermission(PERMISSIONS.CREATE_EVENTS)
+  @RequireAnyPermission(PERMISSIONS.VIEW_REPORTS, PERMISSIONS.CREATE_EVENTS)
   @AllowEventHost()
   @ApiOperation({ summary: 'Get attendance trends over months' })
   @ApiParam({ name: 'id', description: 'Mahber ID' })
@@ -185,7 +189,7 @@ export class AttendanceController {
 
   @Get('attendance/report')
   @UseGuards(EventAccessGuard)
-  @RequirePermission(PERMISSIONS.CREATE_EVENTS)
+  @RequireAnyPermission(PERMISSIONS.VIEW_REPORTS, PERMISSIONS.CREATE_EVENTS)
   @AllowEventHost()
   @ApiOperation({ summary: 'Export attendance report as PDF' })
   @ApiParam({ name: 'id', description: 'Mahber ID' })

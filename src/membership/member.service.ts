@@ -2,6 +2,7 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { MembershipStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { StateMachineService } from './state-machine.service';
+import { SuspendMemberDto } from './dto/suspend-member.dto';
 
 @Injectable()
 export class MemberService {
@@ -55,7 +56,7 @@ export class MemberService {
     return membership;
   }
 
-  async suspend(mahberId: string, memberId: string, actorId: string) {
+  async suspend(mahberId: string, memberId: string, actorId: string, dto: SuspendMemberDto) {
     await this.assertAdmin(mahberId, actorId);
 
     const membership = await this.prisma.membership.findFirst({
@@ -66,13 +67,51 @@ export class MemberService {
       throw new NotFoundException('Member not found');
     }
 
+    const suspended_until = dto.duration_days
+      ? new Date(Date.now() + dto.duration_days * 24 * 60 * 60 * 1000)
+      : null;
+    const suspension_reason = dto.reason || 'Suspended by admin';
+
     return this.stateMachine.transitionState(
       membership.id,
       MembershipStatus.Suspended,
       actorId,
-      'Suspended by admin',
+      suspension_reason,
       this.prisma as any,
+      {
+        suspended_until,
+        suspension_reason,
+      },
     );
+  }
+
+  async checkAndReinstateExpiredSuspensions() {
+    const now = new Date();
+    const expiredMemberships = await this.prisma.membership.findMany({
+      where: {
+        status: MembershipStatus.Suspended,
+        suspended_until: {
+          lte: now,
+        },
+      },
+    });
+
+    const results: { id: string; memberId: string; success: boolean; error?: string }[] = [];
+    for (const membership of expiredMemberships) {
+      try {
+        await this.stateMachine.transitionState(
+          membership.id,
+          MembershipStatus.Active,
+          null,
+          'Temporary suspension duration expired. Automatically reinstated by system.',
+          this.prisma as any,
+        );
+        results.push({ id: membership.id, memberId: membership.member_id, success: true });
+      } catch (err: any) {
+        results.push({ id: membership.id, memberId: membership.member_id, success: false, error: err.message });
+      }
+    }
+    return results;
   }
 
   async reinstate(mahberId: string, memberId: string, actorId: string) {

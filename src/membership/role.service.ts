@@ -56,6 +56,12 @@ export class RoleService {
       throw new NotFoundException('Member not found');
     }
 
+    if (dto.role_name === 'Advisor' && dto.custom_permissions?.length) {
+      throw new BadRequestException(
+        'Advisor is a fixed read-only role and cannot have custom permissions',
+      );
+    }
+
     // Validate target member has Active status
     if (targetMembership.status !== MembershipStatus.Active) {
       throw new BadRequestException(
@@ -84,6 +90,37 @@ export class RoleService {
         throw new BadRequestException(
           'Cannot remove the last admin from the organization',
         );
+      }
+    }
+
+    // Enforce configurable per-role member limits
+    const isChangingRole = currentRole?.name !== dto.role_name;
+    if (isChangingRole) {
+      const mahber = await this.prisma.mahber.findUnique({
+        where: { id: mahberId },
+        select: { configuration: true },
+      });
+
+      if (mahber) {
+        const config = (mahber.configuration as Record<string, any>) ?? {};
+        const roleLimits: Record<string, number> = config.role_limits ?? {};
+        const limit = roleLimits[dto.role_name];
+
+        if (limit !== undefined && limit > 0) {
+          const currentCount = await this.prisma.membership.count({
+            where: {
+              mahber_id: mahberId,
+              status: MembershipStatus.Active,
+              role: { path: ['name'], equals: dto.role_name },
+            },
+          });
+
+          if (currentCount >= limit) {
+            throw new BadRequestException(
+              `Role limit exceeded: maximum ${limit} member(s) can have the "${dto.role_name}" role`,
+            );
+          }
+        }
       }
     }
 

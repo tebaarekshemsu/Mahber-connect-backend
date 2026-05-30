@@ -6,6 +6,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
@@ -38,26 +39,90 @@ export class EventService {
       }
     }
 
-    const event = await this.prisma.event.create({
-      data: {
+    const pattern = dto.recurrence_pattern ?? 'None';
+    if (pattern !== 'None' && !dto.recurrence_end_date) {
+      throw new BadRequestException('recurrence_end_date is required when a recurrence pattern is provided');
+    }
+
+    const start = new Date(dto.start_time);
+    const end = new Date(dto.end_time);
+    const durationMs = end.getTime() - start.getTime();
+    
+    let endBoundary = dto.recurrence_end_date ? new Date(dto.recurrence_end_date) : start;
+    
+    // Cap recurrence end date to 1 year from start
+    const oneYearFromStart = new Date(start.getTime() + 365 * 24 * 60 * 60 * 1000);
+    if (endBoundary > oneYearFromStart) {
+      endBoundary = oneYearFromStart;
+    }
+
+    const eventsToCreate = [];
+    const seriesId = pattern !== 'None' ? crypto.randomUUID() : null;
+
+    let currentStart = new Date(start.getTime());
+    let currentEnd = new Date(end.getTime());
+
+    while (currentStart <= endBoundary) {
+      eventsToCreate.push({
         mahber_id: mahberId,
         title: dto.title,
         description: dto.description,
         event_type: dto.event_type,
-        start_time: new Date(dto.start_time),
-        end_time: new Date(dto.end_time),
+        start_time: new Date(currentStart),
+        end_time: new Date(currentEnd),
         location: dto.location,
         is_mandatory: dto.is_mandatory ?? false,
         created_by: actorId,
         host_id: dto.host_id ?? null,
-      },
+        recurrence_pattern: pattern,
+        recurrence_end_date: dto.recurrence_end_date ? new Date(dto.recurrence_end_date) : null,
+        series_id: seriesId,
+      });
+
+      if (pattern === 'Weekly') {
+        currentStart.setDate(currentStart.getDate() + 7);
+        currentEnd.setDate(currentEnd.getDate() + 7);
+      } else if (pattern === 'Monthly') {
+        currentStart.setMonth(currentStart.getMonth() + 1);
+        currentEnd.setMonth(currentEnd.getMonth() + 1);
+      } else {
+        break; // None
+      }
+    }
+
+    if (eventsToCreate.length === 0) {
+      throw new BadRequestException('Invalid recurrence parameters. Resulted in 0 events.');
+    }
+
+    // Insert all events
+    await this.prisma.event.createMany({
+      data: eventsToCreate,
     });
+
+    // We fetch the first created event to return and use for notifications
+    const firstEvent = await this.prisma.event.findFirst({
+      where: {
+        mahber_id: mahberId,
+        created_by: actorId,
+        title: dto.title,
+        start_time: new Date(start.getTime()),
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    if (!firstEvent) {
+        throw new BadRequestException('Failed to retrieve created event');
+    }
+
+    const eventTitleDesc = pattern !== 'None' 
+      ? `Recurring Event Series: ${firstEvent.title} (${pattern})` 
+      : `New Event Scheduled: ${firstEvent.title}`;
 
     await this.notificationService.sendToMahberMembers(
       mahberId,
-      `New Event Scheduled: ${event.title}`,
-      `A new event has been scheduled at ${event.location} starting on ${event.start_time.toLocaleDateString()}`,
-      { type: 'EVENT_CREATED', id: event.id },
+      eventTitleDesc,
+      `A new event has been scheduled at ${firstEvent.location} starting on ${firstEvent.start_time.toLocaleDateString()}`,
+      { type: 'EVENT_CREATED', id: firstEvent.id },
       NotificationType.event,
       `/mahbers/${mahberId}/events`
     );
@@ -65,13 +130,13 @@ export class EventService {
     await this.audit.logAuditEvent({
       mahber_id: mahberId,
       entity_type: 'event',
-      entity_id: event.id,
+      entity_id: seriesId ?? firstEvent.id,
       action: 'event_created',
       actor_id: actorId,
-      new_value: { title: event.title, host_id: dto.host_id ?? null },
+      new_value: { title: firstEvent.title, host_id: dto.host_id ?? null, is_recurring: pattern !== 'None', event_count: eventsToCreate.length },
     });
 
-    return event;
+    return firstEvent;
   }
 
   async findAll(mahberId: string, page: number, limit: number) {

@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   DefaultValuePipe,
   Get,
@@ -13,6 +14,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { MemberService } from './member.service';
+import { SuspendMemberDto } from './dto/suspend-member.dto';
 
 @ApiTags('Membership')
 @ApiBearerAuth()
@@ -51,8 +53,9 @@ export class MemberController {
     @Param('id') mahberId: string,
     @Param('memberId') memberId: string,
     @CurrentUser() user: JwtPayload,
+    @Body() dto: SuspendMemberDto,
   ) {
-    return this.memberService.suspend(mahberId, memberId, user.sub);
+    return this.memberService.suspend(mahberId, memberId, user.sub, dto);
   }
 
   @Post(':memberId/reinstate')

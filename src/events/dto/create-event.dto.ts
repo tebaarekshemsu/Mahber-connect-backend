@@ -6,7 +6,7 @@ import {
   IsOptional,
   IsString,
 } from 'class-validator';
-import { EventType } from '@prisma/client';
+import { EventType, EventRecurrence } from '@prisma/client';
 
 export class CreateEventDto {
   @IsString()
@@ -37,4 +37,12 @@ export class CreateEventDto {
   @IsString()
   @IsOptional()
   host_id?: string;
+
+  @IsEnum(EventRecurrence)
+  @IsOptional()
+  recurrence_pattern?: EventRecurrence;
+
+  @IsDateString()
+  @IsOptional()
+  recurrence_end_date?: string;
 }

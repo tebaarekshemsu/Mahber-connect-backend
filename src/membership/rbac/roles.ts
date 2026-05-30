@@ -30,4 +30,8 @@ export const DEFAULT_ROLES: Record<string, Role> = {
     name: 'Member',
     permissions: [],
   },
+  Advisor: {
+    name: 'Advisor',
+    permissions: [PERMISSIONS.VIEW_REPORTS],
+  },
 };

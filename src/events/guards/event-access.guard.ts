@@ -7,8 +7,10 @@ import {
 import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PERMISSION_KEY } from '../../membership/decorators/require-permission.decorator';
+import { PERMISSIONS_ANY_KEY } from '../../membership/decorators/require-any-permission.decorator';
 import { ALLOW_EVENT_HOST_KEY } from '../decorators/allow-event-host.decorator';
 import { Permission } from '../../membership/rbac/permissions';
+import { membershipHasRequiredPermissions } from '../../membership/rbac/check-permissions';
 import { Role } from '../../membership/rbac/roles';
 import { JwtPayload } from '../../auth/interfaces/jwt-payload.interface';
 
@@ -22,6 +24,10 @@ export class EventAccessGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const requiredPermission = this.reflector.getAllAndOverride<Permission>(
       PERMISSION_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+    const requiredAny = this.reflector.getAllAndOverride<Permission[]>(
+      PERMISSIONS_ANY_KEY,
       [context.getHandler(), context.getClass()],
     );
 
@@ -39,8 +45,7 @@ export class EventAccessGuard implements CanActivate {
       throw new ForbiddenException('Insufficient permissions');
     }
 
-    // Check permission-based access (membership role)
-    if (requiredPermission) {
+    if (requiredPermission || requiredAny?.length) {
       const membership = await this.prisma.membership.findFirst({
         where: {
           member_id: user.sub,
@@ -53,13 +58,18 @@ export class EventAccessGuard implements CanActivate {
         const role = membership.role as unknown as Role;
         const permissions: Permission[] = role?.permissions ?? [];
 
-        if (permissions.includes(requiredPermission)) {
+        if (
+          membershipHasRequiredPermissions(
+            permissions,
+            requiredPermission,
+            requiredAny,
+          )
+        ) {
           return true;
         }
       }
     }
 
-    // Check event-host-based access
     if (allowEventHost && eventId) {
       const event = await this.prisma.event.findFirst({
         where: { id: eventId, mahber_id: mahberId },

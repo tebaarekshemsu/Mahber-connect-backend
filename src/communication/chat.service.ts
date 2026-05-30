@@ -8,6 +8,7 @@ import { MembershipStatus, NotificationType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { EditMessageDto } from './dto/edit-message.dto';
+import { MarkMessagesReadDto } from './dto/mark-messages-read.dto';
 import { NotificationService } from './notification.service';
 import { CommunicationGateway } from './communication.gateway';
 
@@ -66,7 +67,7 @@ export class ChatService {
     return message;
   }
 
-  async findAll(mahberId: string, page: number, limit: number) {
+  async findAll(mahberId: string, page: number, limit: number, currentUserId?: string) {
     const skip = (page - 1) * limit;
 
     const [data, total] = await this.prisma.$transaction([
@@ -75,14 +76,31 @@ export class ChatService {
         orderBy: { created_at: 'asc' },
         skip,
         take: limit,
+        include: {
+          read_receipts: {
+            select: { member_id: true, read_at: true },
+          },
+        },
       }),
       this.prisma.chatMessage.count({
         where: { mahber_id: mahberId, is_deleted: false },
       }),
     ]);
 
+    // Enrich each message with read count and is_read_by_me flag
+    const enriched = data.map((msg) => {
+      const { read_receipts, ...rest } = msg;
+      return {
+        ...rest,
+        read_by_count: read_receipts.length,
+        is_read_by_me: currentUserId
+          ? read_receipts.some((r) => r.member_id === currentUserId)
+          : false,
+      };
+    });
+
     return {
-      data,
+      data: enriched,
       meta: {
         total,
         page,
@@ -155,5 +173,110 @@ export class ChatService {
       where: { id: messageId },
       data: { is_deleted: true },
     });
+  }
+
+  // ── Read Receipts ──────────────────────────────────────────────────────────
+
+  async markMessagesRead(
+    mahberId: string,
+    memberId: string,
+    dto: MarkMessagesReadDto,
+  ) {
+    // Verify active membership
+    const membership = await this.prisma.membership.findFirst({
+      where: { mahber_id: mahberId, member_id: memberId, status: MembershipStatus.Active },
+    });
+    if (!membership) {
+      throw new ForbiddenException('You must be an active member to mark messages as read');
+    }
+
+    // Filter to only messages that belong to this mahber and aren't the sender's own
+    const messages = await this.prisma.chatMessage.findMany({
+      where: {
+        id: { in: dto.message_ids },
+        mahber_id: mahberId,
+        is_deleted: false,
+        sender_id: { not: memberId }, // Don't create receipts for your own messages
+      },
+      select: { id: true },
+    });
+
+    if (messages.length === 0) {
+      return { marked: 0 };
+    }
+
+    const validIds = messages.map((m) => m.id);
+
+    // Upsert read receipts (skip duplicates via onConflict)
+    let createdCount = 0;
+    for (const msgId of validIds) {
+      try {
+        await this.prisma.chatReadReceipt.create({
+          data: {
+            message_id: msgId,
+            member_id: memberId,
+          },
+        });
+        createdCount++;
+      } catch (err: any) {
+        // P2002 = unique constraint violation → already read, skip
+        if (err?.code !== 'P2002') throw err;
+      }
+    }
+
+    // Broadcast read receipt event via WebSocket so senders see it in real-time
+    this.gateway.server.to(`mahber_${mahberId}`).emit('messages_read', {
+      reader_id: memberId,
+      message_ids: validIds,
+      read_at: new Date().toISOString(),
+    });
+
+    return { marked: createdCount };
+  }
+
+  async getReadReceipts(mahberId: string, messageId: string) {
+    const message = await this.prisma.chatMessage.findFirst({
+      where: { id: messageId, mahber_id: mahberId },
+    });
+
+    if (!message) {
+      throw new NotFoundException('Message not found');
+    }
+
+    const receipts = await this.prisma.chatReadReceipt.findMany({
+      where: { message_id: messageId },
+      orderBy: { read_at: 'asc' },
+    });
+
+    // Batch-fetch user names
+    const memberIds = receipts.map((r) => r.member_id);
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: memberIds } },
+      select: { id: true, name: true },
+    });
+    const userMap = new Map(users.map((u) => [u.id, u.name]));
+
+    return receipts.map((r) => ({
+      member_id: r.member_id,
+      member_name: userMap.get(r.member_id) ?? 'Unknown',
+      read_at: r.read_at,
+    }));
+  }
+
+  async getUnreadCount(mahberId: string, memberId: string) {
+    // Count messages in this mahber that: (1) are not deleted, (2) were not sent by this member,
+    // (3) do NOT have a read receipt from this member.
+    const count = await this.prisma.chatMessage.count({
+      where: {
+        mahber_id: mahberId,
+        is_deleted: false,
+        sender_id: { not: memberId },
+        read_receipts: {
+          none: { member_id: memberId },
+        },
+      },
+    });
+
+    return { unread_count: count };
   }
 }

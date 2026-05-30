@@ -5,12 +5,14 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { FinancialModule } from '../financial/financial.module';
 import { CommunicationModule } from '../communication/communication.module';
 import { EventsModule } from '../events/events.module';
+import { MembershipModule } from '../membership/membership.module';
 import { QUEUE_NAMES } from './interfaces/job-types';
 import { FineCalculationProcessor } from './processors/fine-calculation.processor';
 import { JoinRequestExpiryProcessor } from './processors/join-request-expiry.processor';
 import { LotteryExecutionProcessor } from './processors/lottery-execution.processor';
 import { PaymentReminderProcessor } from './processors/payment-reminder.processor';
 import { AttendanceProcessor } from './processors/attendance.processor';
+import { SuspensionExpiryProcessor } from './processors/suspension-expiry.processor';
 import { JobScheduler } from './schedulers/job.scheduler';
 
 const defaultJobOptions = {
@@ -45,10 +47,12 @@ const defaultJobOptions = {
       { name: QUEUE_NAMES.LOTTERY_EXECUTION },
       { name: QUEUE_NAMES.PAYMENT_REMINDER },
       { name: QUEUE_NAMES.ATTENDANCE_PROCESSOR },
+      { name: QUEUE_NAMES.SUSPENSION_EXPIRY },
     ),
     FinancialModule,
     CommunicationModule,
     EventsModule,
+    MembershipModule,
   ],
   providers: [
     FineCalculationProcessor,
@@ -56,6 +60,7 @@ const defaultJobOptions = {
     LotteryExecutionProcessor,
     PaymentReminderProcessor,
     AttendanceProcessor,
+    SuspensionExpiryProcessor,
     JobScheduler,
   ],
   exports: [BullModule],

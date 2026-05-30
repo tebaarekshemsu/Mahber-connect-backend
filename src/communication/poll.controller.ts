@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -59,6 +60,17 @@ export class PollController {
     @Body() dto: CastVoteDto,
   ) {
     return this.pollService.castVote(mahberId, pollId, user.sub, dto);
+  }
+
+  /** PUT /mahbers/:id/polls/:pollId/vote — edit vote before deadline (upsert) */
+  @Put(':pollId/vote')
+  editVote(
+    @Param('id') mahberId: string,
+    @Param('pollId') pollId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: CastVoteDto,
+  ) {
+    return this.pollService.editVote(mahberId, pollId, user.sub, dto);
   }
 
   /** GET /mahbers/:id/polls/:pollId/results */

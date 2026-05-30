@@ -9,8 +9,10 @@ import {
 import * as crypto from 'node:crypto';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { NotificationType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SmsService } from '../communication/sms.service';
+import { NotificationService } from '../communication/notification.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -30,6 +32,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly smsService: SmsService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -55,6 +58,21 @@ export class AuthService {
       },
     });
 
+    // Send welcome notification
+    try {
+      await this.notificationService.sendToUser(
+        user.id,
+        'Welcome to MahberConnect!',
+        `Welcome, ${user.name}! We're thrilled to have you join MahberConnect. Explore community financial pools, manage your Equbs, and connect with your local community.`,
+        undefined,
+        NotificationType.info,
+      );
+    } catch (notificationError: any) {
+      this.logger.error(
+        `Failed to send welcome notification to user ${user.id}: ${notificationError.message}`,
+      );
+    }
+
     // Return user without password
     const { password: _password, ...result } = user;
     return result;
@@ -70,6 +88,10 @@ export class AuthService {
         `Failed login attempt for phone: ${dto.phone} - user not found`,
       );
       throw new UnauthorizedException('Invalid credentials');
+    }
+
+    if (user.is_suspended) {
+      throw new UnauthorizedException('Your account has been suspended');
     }
 
     const passwordValid = await bcrypt.compare(dto.password, user.password);
@@ -89,6 +111,7 @@ export class AuthService {
         id: user.id,
         phone: user.phone,
         name: user.name,
+        is_super_admin: user.is_super_admin,
       },
     };
   }

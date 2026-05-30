@@ -7,7 +7,9 @@ import {
 import { Reflector } from '@nestjs/core';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PERMISSION_KEY } from '../decorators/require-permission.decorator';
+import { PERMISSIONS_ANY_KEY } from '../decorators/require-any-permission.decorator';
 import { Permission } from '../rbac/permissions';
+import { membershipHasRequiredPermissions } from '../rbac/check-permissions';
 import { Role } from '../rbac/roles';
 import { JwtPayload } from '../../auth/interfaces/jwt-payload.interface';
 
@@ -23,9 +25,12 @@ export class RoleGuard implements CanActivate {
       PERMISSION_KEY,
       [context.getHandler(), context.getClass()],
     );
+    const requiredAny = this.reflector.getAllAndOverride<Permission[]>(
+      PERMISSIONS_ANY_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
-    // No permission required — allow through
-    if (!requiredPermission) {
+    if (!requiredPermission && !requiredAny?.length) {
       return true;
     }
 
@@ -52,10 +57,16 @@ export class RoleGuard implements CanActivate {
     const role = membership.role as unknown as Role;
     const permissions: Permission[] = role?.permissions ?? [];
 
-    if (!permissions.includes(requiredPermission)) {
-      throw new ForbiddenException(
-        `Permission '${requiredPermission}' is required`,
-      );
+    if (
+      !membershipHasRequiredPermissions(
+        permissions,
+        requiredPermission,
+        requiredAny,
+      )
+    ) {
+      const label =
+        requiredAny?.join(' or ') ?? requiredPermission ?? 'unknown';
+      throw new ForbiddenException(`Permission '${label}' is required`);
     }
 
     return true;

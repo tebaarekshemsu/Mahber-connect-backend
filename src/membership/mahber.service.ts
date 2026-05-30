@@ -37,12 +37,17 @@ export class MahberService {
       throw new ConflictException('Organization name already exists');
     }
 
+    const configuration = {
+      ...dto.configuration,
+      ...(dto.role_limits !== undefined && { role_limits: dto.role_limits }),
+    };
+
     return this.prisma.$transaction(async (tx) => {
       const mahber = await tx.mahber.create({
         data: {
           name: dto.name,
           type: dto.type,
-          configuration: dto.configuration as Prisma.InputJsonValue,
+          configuration: configuration as Prisma.InputJsonValue,
           is_public: dto.is_public ?? true,
           invitation_code: dto.invitation_code,
         },

@@ -110,6 +110,8 @@ model Membership {
   activation_date       DateTime?
   joined_at             DateTime?
   next_payment_due      DateTime?
+  suspended_until       DateTime?
+  suspension_reason     String?
   created_at            DateTime         @default(now())
   updated_at            DateTime         @updatedAt
 
@@ -117,6 +119,7 @@ model Membership {
   mahber Mahber @relation(fields: [mahber_id], references: [id])
 
   @@index([mahber_id, member_id])
+  @@index([status, suspended_until])
   @@map("memberships")
 }
 
@@ -390,6 +393,10 @@ model Event {
   host_id      String?
   created_at   DateTime  @default(now())
 
+  recurrence_pattern  EventRecurrence @default(None)
+  recurrence_end_date DateTime?
+  series_id           String?
+
   mahber       Mahber @relation(fields: [mahber_id], references: [id])
   invitations  EventInvitation[]
   attendance_records Attendance[]
@@ -399,7 +406,14 @@ model Event {
   host_user       User?  @relation("EventHost",       fields: [host_id],   references: [id])
 
   @@index([mahber_id, start_time])
+  @@index([series_id])
   @@map("events")
+}
+
+enum EventRecurrence {
+  None
+  Weekly
+  Monthly
 }
 
 enum EventType {
@@ -519,14 +533,29 @@ model ChatMessage {
 
   mahber Mahber @relation(fields: [mahber_id], references: [id])
   sender User   @relation(fields: [sender_id], references: [id])
+  read_receipts ChatReadReceipt[]
 
   @@index([mahber_id, created_at])
   @@map("chat_messages")
 }
 
+model ChatReadReceipt {
+  id         String   @id @default(uuid())
+  message_id String
+  member_id  String
+  read_at    DateTime @default(now())
+
+  message ChatMessage @relation(fields: [message_id], references: [id], onDelete: Cascade)
+
+  @@unique([message_id, member_id])
+  @@index([member_id, read_at])
+  @@map("chat_read_receipts")
+}
+
 enum PollType {
   SINGLE_CHOICE
   MULTIPLE_CHOICE
+  RANKED_CHOICE
 }
 
 model Poll {

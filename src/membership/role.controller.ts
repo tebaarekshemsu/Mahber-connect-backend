@@ -1,5 +1,9 @@
-import { Body, Controller, Param, Post, Put, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { RoleGuard } from './guards/role.guard';
+import { RequirePermission } from './decorators/require-permission.decorator';
+import { PERMISSIONS } from './rbac/permissions';
+import { DEFAULT_ROLES } from './rbac/roles';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
@@ -13,6 +17,14 @@ import { CreateCustomRoleDto } from './dto/create-custom-role.dto';
 @Controller('mahbers/:id')
 export class RoleController {
   constructor(private readonly roleService: RoleService) {}
+
+  @Get('roles')
+  @UseGuards(RoleGuard)
+  @RequirePermission(PERMISSIONS.MANAGE_ROLES)
+  @ApiOperation({ summary: 'List predefined mahber roles and permissions' })
+  listRoles() {
+    return Object.values(DEFAULT_ROLES);
+  }
 
   @Put('members/:memberId/role')
   assignRole(

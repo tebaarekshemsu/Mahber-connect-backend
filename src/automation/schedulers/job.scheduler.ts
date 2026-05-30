@@ -20,6 +20,9 @@ export class JobScheduler {
     @InjectQueue(QUEUE_NAMES.PAYMENT_REMINDER)
     private readonly paymentReminderQueue: Queue<PaymentReminderJobData>,
 
+    @InjectQueue(QUEUE_NAMES.SUSPENSION_EXPIRY)
+    private readonly suspensionExpiryQueue: Queue,
+
     private readonly configService: ConfigService,
   ) {}
 
@@ -42,6 +45,13 @@ export class JobScheduler {
   async schedulePaymentReminders(): Promise<void> {
     this.logger.log('Scheduling payment reminder job');
     await this.paymentReminderQueue.add({});
+  }
+
+  /** Check for expired temporary suspensions every hour (UC-08) */
+  @Cron('0 * * * *')
+  async scheduleSuspensionExpiry(): Promise<void> {
+    this.logger.log('Scheduling suspension expiry check');
+    await this.suspensionExpiryQueue.add({});
   }
 
   /** Ping the health endpoint every 10 minutes to prevent Render from sleeping */

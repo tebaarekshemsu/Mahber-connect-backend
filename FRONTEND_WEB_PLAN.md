@@ -388,7 +388,8 @@ mahberconnect-web/
 | `/mahbers/[id]/fines` | Fines | `GET /mahbers/:id/fines`, `POST /mahbers/:id/fines/:fineId/waive` | Yes | Member |
 | `/mahbers/[id]/lottery` | Lottery History | `GET /mahbers/:id/lottery/history` | Yes | Member |
 | `/mahbers/[id]/lottery` | Execute Lottery (Equb) | `POST /mahbers/:id/lottery/execute` | Yes | Treasurer (`MANAGE_FINANCES`) |
-| `/mahbers/[id]/reports/financial` | Financial Report | `GET /mahbers/:id/reports/financial` | Yes | Treasurer (`MANAGE_FINANCES`) |
+| `/mahbers/[id]/reports/financial` | Financial Report | `GET /mahbers/:id/reports/financial` | Yes | `VIEW_REPORTS` (Advisor, Treasurer, Admin) |
+| `/mahbers/[id]/reports/attendance` | Attendance Report | `GET /mahbers/:id/reports/attendance/trends`, `.../export` | Yes | `VIEW_REPORTS` (Advisor) or `CREATE_EVENTS` (Secretary) |
 
 ### 3.7 Events Pages
 
@@ -936,7 +937,9 @@ export const config = {
 
 ### 7.2 Permission Checking
 
-Role names are PascalCase to match the backend (`Admin`, `Treasurer`, `Secretary`, `Member`). The `role` field on a membership is a JSON object `{ name: string, permissions: string[] }`.
+Role names are PascalCase to match the backend (`Admin`, `Treasurer`, `Secretary`, `Member`, `Advisor`). The `role` field on a membership is a JSON object `{ name: string, permissions: string[] }`.
+
+**Advisor** (Section 3.3.1): read-only auditors — `view_reports` only. See [docs/ADVISOR_ROLE_FRONTEND_PLAN.md](./docs/ADVISOR_ROLE_FRONTEND_PLAN.md) for full UI plan.
 
 ```typescript
 // lib/utils/permissions.ts
@@ -954,6 +957,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
   Admin: Object.values(PERMISSIONS),
   Treasurer: [PERMISSIONS.MANAGE_FINANCES, PERMISSIONS.VIEW_REPORTS],
   Secretary: [PERMISSIONS.CREATE_EVENTS, PERMISSIONS.SEND_ANNOUNCEMENTS],
+  Advisor: [PERMISSIONS.VIEW_REPORTS],
   Member: [],
 };
 

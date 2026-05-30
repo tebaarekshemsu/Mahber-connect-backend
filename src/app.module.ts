@@ -14,6 +14,7 @@ import { EventsModule } from './events/events.module';
 import { CommunicationModule } from './communication/communication.module';
 import { AutomationModule } from './automation/automation.module';
 import { AuditModule } from './audit/audit.module';
+import { SuperAdminModule } from './super-admin/super-admin.module';
 import { CacheModule } from './common/cache.module';
 import {
   appConfig,
@@ -55,6 +56,7 @@ import { envValidationSchema } from './config/env.validation';
     CommunicationModule,
     AutomationModule,
     AuditModule,
+    SuperAdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],

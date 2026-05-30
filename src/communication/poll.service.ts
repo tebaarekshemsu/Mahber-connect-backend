@@ -18,51 +18,7 @@ export class PollService {
     private readonly gateway: CommunicationGateway,
   ) {}
 
-  async create(mahberId: string, actorId: string, dto: CreatePollDto) {
-    const poll = await this.prisma.poll.create({
-      data: {
-        mahber_id: mahberId,
-        question: dto.question,
-        options: dto.options as unknown as Prisma.InputJsonValue,
-        poll_type: dto.poll_type,
-        voting_deadline: new Date(dto.voting_deadline),
-        eligibility_criteria: dto.eligibility_criteria ?? null,
-        created_by: actorId,
-      },
-    });
-
-    // Emit event via WebSocket to the Mahber room
-    this.gateway.server.to(`mahber_${mahberId}`).emit('new_poll', poll);
-
-    return poll;
-  }
-
-  async findAll(mahberId: string, page: number, limit: number) {
-    const skip = (page - 1) * limit;
-
-    const [data, total] = await this.prisma.$transaction([
-      this.prisma.poll.findMany({
-        where: { mahber_id: mahberId },
-        include: { votes: true, creator: { select: { id: true, name: true } } },
-        orderBy: { created_at: 'desc' },
-        skip,
-        take: limit,
-      }),
-      this.prisma.poll.count({ where: { mahber_id: mahberId } }),
-    ]);
-
-    return {
-      data,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
-  }
-
-  async castVote(
+  private async validatePollAndVoteRequest(
     mahberId: string,
     pollId: string,
     memberId: string,
@@ -119,6 +75,71 @@ export class PollService {
       throw new BadRequestException('Single-choice poll requires exactly one choice');
     }
 
+    if (poll.poll_type === 'RANKED_CHOICE') {
+      if (dto.choices.length === 0) {
+        throw new BadRequestException('Ranked choice poll requires at least one choice');
+      }
+      const uniqueChoices = new Set(dto.choices);
+      if (uniqueChoices.size !== dto.choices.length) {
+        throw new BadRequestException('Ranked choice votes cannot contain duplicate options');
+      }
+    }
+
+    return { poll, closedPoll };
+  }
+
+  async create(mahberId: string, actorId: string, dto: CreatePollDto) {
+    const poll = await this.prisma.poll.create({
+      data: {
+        mahber_id: mahberId,
+        question: dto.question,
+        options: dto.options as unknown as Prisma.InputJsonValue,
+        poll_type: dto.poll_type,
+        voting_deadline: new Date(dto.voting_deadline),
+        eligibility_criteria: dto.eligibility_criteria ?? null,
+        created_by: actorId,
+      },
+    });
+
+    // Emit event via WebSocket to the Mahber room
+    this.gateway.server.to(`mahber_${mahberId}`).emit('new_poll', poll);
+
+    return poll;
+  }
+
+  async findAll(mahberId: string, page: number, limit: number) {
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.poll.findMany({
+        where: { mahber_id: mahberId },
+        include: { votes: true, creator: { select: { id: true, name: true } } },
+        orderBy: { created_at: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.poll.count({ where: { mahber_id: mahberId } }),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async castVote(
+    mahberId: string,
+    pollId: string,
+    memberId: string,
+    dto: CastVoteDto,
+  ) {
+    await this.validatePollAndVoteRequest(mahberId, pollId, memberId, dto);
+
     // Prevent duplicate votes (enforce immutability)
     try {
       return await this.prisma.vote.create({
@@ -134,6 +155,46 @@ export class PollService {
       }
       throw err;
     }
+  }
+
+  async editVote(
+    mahberId: string,
+    pollId: string,
+    memberId: string,
+    dto: CastVoteDto,
+  ) {
+    const { poll: existingPoll } = await this.validatePollAndVoteRequest(
+      mahberId,
+      pollId,
+      memberId,
+      dto,
+    );
+
+    // Allow editing before deadline: create if missing, otherwise update.
+    const vote = await this.prisma.vote.upsert({
+      where: {
+        poll_id_member_id: {
+          poll_id: pollId,
+          member_id: memberId,
+        },
+      },
+      create: {
+        poll_id: pollId,
+        member_id: memberId,
+        choices: dto.choices,
+      },
+      update: {
+        choices: dto.choices,
+      },
+    });
+
+    // Optional realtime update for clients listening on the Mahber room.
+    this.gateway.server.to(`mahber_${existingPoll.mahber_id}`).emit('poll_vote_updated', {
+      poll_id: pollId,
+      member_id: memberId,
+    });
+
+    return vote;
   }
 
   async getResults(mahberId: string, pollId: string, actorId: string) {
@@ -159,7 +220,97 @@ export class PollService {
 
     const options = closedPoll.options as unknown as PollOptionDto[];
 
-    // Aggregate vote counts per option — no individual vote exposure
+    if (closedPoll.poll_type === 'RANKED_CHOICE') {
+      const activeOptions = new Set(options.map((o) => o.id));
+      const irvRounds: any[] = [];
+      let winner = null;
+      let round = 1;
+
+      // Deep copy the votes as they will be modified
+      const voterPreferences = closedPoll.votes.map((v) => (v.choices as string[]).filter(c => activeOptions.has(c)));
+
+      while (activeOptions.size > 0 && !winner) {
+        const counts: Record<string, number> = {};
+        for (const optId of activeOptions) counts[optId] = 0;
+
+        let totalActiveVotes = 0;
+
+        // Count first preferences
+        for (const prefs of voterPreferences) {
+          if (prefs.length > 0) {
+            counts[prefs[0]]++;
+            totalActiveVotes++;
+          }
+        }
+
+        // Check for winner
+        let roundWinner = null;
+        let minVotes = Infinity;
+        let candidatesToEliminate: string[] = [];
+
+        for (const optId of activeOptions) {
+          const vCount = counts[optId];
+          if (vCount > totalActiveVotes / 2) {
+            roundWinner = optId;
+          }
+          if (vCount < minVotes) {
+            minVotes = vCount;
+            candidatesToEliminate = [optId];
+          } else if (vCount === minVotes) {
+            candidatesToEliminate.push(optId);
+          }
+        }
+
+        if (roundWinner) {
+          winner = roundWinner;
+          irvRounds.push({
+            round,
+            counts,
+            eliminated: [],
+            winner
+          });
+          break;
+        }
+
+        // If everyone left has 0 votes
+        if (minVotes === 0 && totalActiveVotes === 0) break;
+
+        // Eliminate candidates
+        irvRounds.push({
+          round,
+          counts,
+          eliminated: candidatesToEliminate,
+        });
+
+        for (const elim of candidatesToEliminate) {
+          activeOptions.delete(elim);
+        }
+
+        // Remove eliminated candidates from voters' lists
+        for (let i = 0; i < voterPreferences.length; i++) {
+          voterPreferences[i] = voterPreferences[i].filter(c => activeOptions.has(c));
+        }
+
+        round++;
+      }
+
+      return {
+        poll_id: closedPoll.id,
+        question: closedPoll.question,
+        poll_type: closedPoll.poll_type,
+        is_closed: closedPoll.is_closed,
+        voting_deadline: closedPoll.voting_deadline,
+        total_votes: closedPoll.votes.length,
+        results: options.map((opt) => ({
+          option_id: opt.id,
+          option_text: opt.text,
+          vote_count: irvRounds.length > 0 ? irvRounds[0].counts[opt.id] ?? 0 : 0,
+        })),
+        irv_rounds: irvRounds,
+      };
+    }
+
+    // Standard counting for SINGLE_CHOICE and MULTIPLE_CHOICE
     const counts: Record<string, number> = {};
     for (const opt of options) {
       counts[opt.id] = 0;

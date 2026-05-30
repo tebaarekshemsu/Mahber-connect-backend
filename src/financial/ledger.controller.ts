@@ -11,6 +11,7 @@ import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RoleGuard } from '../membership/guards/role.guard';
 import { RequirePermission } from '../membership/decorators/require-permission.decorator';
+import { RequireAnyPermission } from '../membership/decorators/require-any-permission.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/interfaces/jwt-payload.interface';
 import { PERMISSIONS } from '../membership/rbac/permissions';
@@ -66,7 +67,7 @@ export class LedgerController {
   }
 
   @UseGuards(RoleGuard)
-  @RequirePermission(PERMISSIONS.MANAGE_FINANCES)
+  @RequireAnyPermission(PERMISSIONS.VIEW_REPORTS, PERMISSIONS.MANAGE_FINANCES)
   @Get('reports/financial')
   async getFinancialReport(
     @Param('id') mahberId: string,
@@ -118,7 +119,7 @@ export class LedgerController {
   }
 
   @UseGuards(RoleGuard)
-  @RequirePermission(PERMISSIONS.MANAGE_FINANCES)
+  @RequireAnyPermission(PERMISSIONS.VIEW_REPORTS, PERMISSIONS.MANAGE_FINANCES)
   @Get('reports/export')
   async exportReport(
     @Param('id') mahberId: string,

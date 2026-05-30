@@ -7,6 +7,7 @@ import { EventController } from './event.controller';
 import { QrService } from './qr.service';
 import { AttendanceService } from './attendance.service';
 import { AttendanceController } from './attendance.controller';
+import { AttendanceReportsController } from './attendance-reports.controller';
 import { PhotoService } from './photo.service';
 import { PhotoController } from './photo.controller';
 import { InvitationController } from './invitation.controller';
@@ -26,7 +27,13 @@ import { QUEUE_NAMES } from '../automation/interfaces/job-types';
     AuditModule,
     BullModule.registerQueue({ name: QUEUE_NAMES.ATTENDANCE_PROCESSOR }),
   ],
-  controllers: [EventController, AttendanceController, PhotoController, InvitationController],
+  controllers: [
+    EventController,
+    AttendanceController,
+    AttendanceReportsController,
+    PhotoController,
+    InvitationController,
+  ],
   providers: [EventService, QrService, AttendanceService, PhotoService, RoleGuard, EventAccessGuard],
   exports: [EventService, QrService, AttendanceService, PhotoService],
 })

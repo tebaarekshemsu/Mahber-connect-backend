@@ -12,7 +12,7 @@ async function bootstrap() {
 
   logger.log('Background worker started successfully');
   logger.log('Listening for jobs on Redis queues...');
-  logger.log('Active processors: attendance, fine-calculation, lottery, payment-reminder, join-request-expiry');
+  logger.log('Active processors: attendance, fine-calculation, lottery, payment-reminder, join-request-expiry, suspension-expiry');
 
   // Keep the process alive
   process.on('SIGTERM', async () => {

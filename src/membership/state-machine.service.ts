@@ -41,9 +41,13 @@ export class StateMachineService {
   async transitionState(
     membershipId: string,
     to: MembershipStatus,
-    actorId: string,
+    actorId: string | null,
     reason: string,
     prisma: PrismaClient,
+    extraData?: {
+      suspended_until?: Date | null;
+      suspension_reason?: string | null;
+    },
   ) {
     const membership = await prisma.membership.findUniqueOrThrow({
       where: { id: membershipId },
@@ -59,7 +63,7 @@ export class StateMachineService {
 
     this.validateStateRequirements(to, membership);
 
-    const updateData: Record<string, unknown> = { status: to };
+    const updateData: Record<string, any> = { status: to };
 
     if (to === MembershipStatus.Active && !membership.activation_date) {
       updateData.activation_date = new Date();
@@ -67,6 +71,18 @@ export class StateMachineService {
 
     if (to === MembershipStatus.Approved && !membership.approval_date) {
       updateData.approval_date = new Date();
+    }
+
+    if (to === MembershipStatus.Suspended) {
+      if (extraData?.suspended_until !== undefined) {
+        updateData.suspended_until = extraData.suspended_until;
+      }
+      if (extraData?.suspension_reason !== undefined) {
+        updateData.suspension_reason = extraData.suspension_reason;
+      }
+    } else {
+      updateData.suspended_until = null;
+      updateData.suspension_reason = null;
     }
 
     const updated = await prisma.membership.update({
@@ -84,7 +100,7 @@ export class StateMachineService {
       entity_type: 'membership',
       entity_id: membershipId,
       action: 'status_transition',
-      actor_id: actorId,
+      actor_id: actorId ?? undefined,
       old_value: { status: from },
       new_value: { status: to },
       metadata: { reason },

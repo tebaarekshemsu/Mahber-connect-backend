@@ -12,6 +12,8 @@ export interface LotteryExecutionJobData {
 
 export interface PaymentReminderJobData {}
 
+export interface SuspensionExpiryJobData {}
+
 export interface AttendanceProcessorJobData {
   mahberId: string;
   eventId: string;
@@ -22,7 +24,8 @@ export type JobData =
   | JoinRequestExpiryJobData
   | LotteryExecutionJobData
   | PaymentReminderJobData
-  | AttendanceProcessorJobData;
+  | AttendanceProcessorJobData
+  | SuspensionExpiryJobData;
 
 export const QUEUE_NAMES = {
   FINE_CALCULATION: 'fine-calculation',
@@ -30,4 +33,5 @@ export const QUEUE_NAMES = {
   LOTTERY_EXECUTION: 'lottery-execution',
   PAYMENT_REMINDER: 'payment-reminder',
   ATTENDANCE_PROCESSOR: 'attendance-processor',
+  SUSPENSION_EXPIRY: 'suspension-expiry',
 } as const;

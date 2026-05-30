@@ -16,6 +16,11 @@ export class CreateMahberDto {
   @IsObject()
   configuration: Record<string, unknown>;
 
+  @ApiPropertyOptional({ example: { Treasurer: 2, Secretary: 3 }, description: 'Per-role member limits enforced on role assignment' })
+  @IsOptional()
+  @IsObject()
+  role_limits?: Record<string, number>;
+
   @ApiPropertyOptional({ example: true, description: 'Whether the Mahber is publicly visible', default: true })
   @IsBoolean()
   @IsOptional()
