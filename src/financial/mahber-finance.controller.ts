@@ -103,10 +103,10 @@ export class MahberFinanceController {
       // Call Chapa to initialize payment
       const callbackUrl =
         this.config.get<string>('app.callbackUrl') ??
-        'http://localhost:3007/payment/callback';
+        'https://mahber-connect-backend.onrender.com/payment/callback';
       const returnUrl =
         this.config.get<string>('app.returnUrl') ??
-        'http://localhost:3007/payment/return';
+        'https://mahber-connect-backend.onrender.com/payment/return';
 
       this.logger.log(`Chapa init (join) - callbackUrl=${callbackUrl} returnUrl=${returnUrl} tx_ref=${pendingPayment.id}`);
       const chapaResult = await this.chapa.initializePayment({
