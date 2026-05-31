@@ -1,10 +1,10 @@
 #!/bin/sh
 set -e
 
-echo "Running database migrations..."
-npx prisma migrate deploy 2>&1 || {
-  echo "Migration failed, but continuing to start application..."
-  echo "You may need to run migrations manually"
+echo "Syncing database schema..."
+npx prisma db push --skip-generate 2>&1 || {
+  echo "Schema sync failed, but continuing to start application..."
+  echo "You may need to run prisma db push manually"
 }
 
 echo "Starting application..."
