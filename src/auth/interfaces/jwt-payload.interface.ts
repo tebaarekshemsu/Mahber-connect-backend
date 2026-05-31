@@ -3,6 +3,7 @@ export interface JwtPayload {
   phone: string;
   mahber_id?: string;
   role?: string;
+  is_super_admin?: boolean;
   iat?: number;
   exp?: number;
 }

@@ -154,12 +154,14 @@ export class AuthService {
     phone: string;
     mahber_id?: string;
     role?: string;
+    is_super_admin?: boolean;
   }): string {
     const payload: JwtPayload = {
       sub: user.id,
       phone: user.phone,
       ...(user.mahber_id && { mahber_id: user.mahber_id }),
       ...(user.role && { role: user.role }),
+      ...(user.is_super_admin && { is_super_admin: true }),
     };
     return this.jwtService.sign(payload);
   }

@@ -17,6 +17,8 @@ model User {
   name               String // Supports Amharic
   email              String?
   bio                String? // Supports Amharic
+  is_super_admin     Boolean  @default(false)
+  is_suspended       Boolean  @default(false)
   notification_prefs Json? // e.g. { "payments": true, "events": true, "announcements": true, "chat": false }
   created_at         DateTime @default(now())
   updated_at         DateTime @updatedAt
@@ -36,6 +38,7 @@ model Mahber {
   type            MahberType
   configuration   Json // JSONB field for flexible config
   is_public       Boolean    @default(true)
+  is_suspended    Boolean    @default(false)
   invitation_code String?
   created_at      DateTime   @default(now())
   updated_at      DateTime   @updatedAt
